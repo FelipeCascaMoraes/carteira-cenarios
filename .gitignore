@@ -1,0 +1,24 @@
+# Ambiente virtual
+.venv/
+env/
+venv/
+
+# Variáveis de ambiente
+.env
+
+# Carteira salva localmente
+carteira.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
