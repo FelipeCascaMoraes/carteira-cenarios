@@ -1,14 +1,14 @@
 import os
 import json
-import anthropic
+from groq import Groq
 from dotenv import load_dotenv
 from macro_model import VARIAVEIS_MACRO
 from simulator import ResultadoSimulacao
 
 load_dotenv()
 
-client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-MODEL = "claude-opus-4-5"
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+MODEL = "llama-3.3-70b-versatile"
 
 
 SYSTEM_EXTRAIR = """Você é um analista financeiro especialista em macroeconomia brasileira e global.
@@ -53,13 +53,15 @@ Máximo 200 palavras."""
 
 def extrair_choque(texto_cenario: str) -> dict[str, float]:
     """Usa o LLM para extrair variáveis macro do texto em linguagem natural."""
-    resp = client.messages.create(
-        model=MODEL,
-        max_tokens=300,
-        system=SYSTEM_EXTRAIR,
-        messages=[{"role": "user", "content": texto_cenario}],
+    resp = client.chat.completions.create(
+    model=MODEL,
+    max_tokens=300,
+    messages=[
+        {"role": "system", "content": SYSTEM_EXTRAIR},
+        {"role": "user", "content": texto_cenario},
+    ],
     )
-    raw = resp.content[0].text.strip()
+    raw = resp.choices[0].message.content.strip()
     
     # Limpa markdown se vier mesmo assim
     raw = raw.replace("```json", "").replace("```", "").strip()
@@ -71,6 +73,7 @@ def extrair_choque(texto_cenario: str) -> dict[str, float]:
     resumo = data.get("resumo_cenario", texto_cenario[:80])
     
     return choque, resumo
+
 
 
 def narrar_resultado(
@@ -96,7 +99,7 @@ Carteira atual:
 
 Resultados da simulação (horizonte 30 dias, 1000 cenários):
 - Valor atual da carteira: R$ {resultado.valor_base:,.2f}
-- Impacto direto do choque: R$ {resultado.impacto_choque_reais:+,.2f} ({resultado.impacto_choque_pct:+.1f}%)
+- Impacto direto do choque: R$ {resultado.impacto_choque_real:+,.2f} ({resultado.impacto_choque_pct:+.1f}%)
 - Cenário pessimista (P10): R$ {resultado.valor_p10:,.2f} ({resultado.retorno_p10_pct:+.1f}%)
 - Cenário mediano (P50): R$ {resultado.valor_p50:,.2f} ({resultado.retorno_p50_pct:+.1f}%)
 - Cenário otimista (P90): R$ {resultado.valor_p90:,.2f} ({resultado.retorno_p90_pct:+.1f}%)
@@ -110,3 +113,47 @@ Narre este resultado para o investidor."""
         messages=[{"role": "user", "content": prompt}],
     )
     return resp.content[0].text.strip()
+
+def narrar_resultado_stream(
+    cenario_texto: str,
+    resumo_cenario: str,
+    resultado: ResultadoSimulacao,
+    ativos_resumo: str,
+):
+    """Versão streaming da narração — compatível com st.write_stream."""
+
+    choque_str = ", ".join(
+        f"{VARIAVEIS_MACRO.get(k, k)}: {'+' if v > 0 else ''}{v:.1f}%"
+        for k, v in resultado.choque_aplicado.items()
+        if v != 0
+    ) or "nenhuma variação significativa"
+
+    prompt = f"""Cenário descrito pelo usuário: "{cenario_texto}"
+Interpretação: {resumo_cenario}
+Variáveis extraídas: {choque_str}
+
+Carteira atual:
+{ativos_resumo}
+
+Resultados da simulação (horizonte 30 dias, 1000 cenários):
+- Valor atual da carteira: R$ {resultado.valor_base:,.2f}
+- Impacto direto do choque: R$ {resultado.impacto_choque_real:+,.2f} ({resultado.impacto_choque_pct:+.1f}%)
+- Cenário pessimista (P10): R$ {resultado.valor_p10:,.2f} ({resultado.retorno_p10_pct:+.1f}%)
+- Cenário mediano (P50): R$ {resultado.valor_p50:,.2f} ({resultado.retorno_p50_pct:+.1f}%)
+- Cenário otimista (P90): R$ {resultado.valor_p90:,.2f} ({resultado.retorno_p90_pct:+.1f}%)
+
+Narre este resultado para o investidor."""
+
+    with client.chat.completions.create(
+        model=MODEL,
+        max_tokens=400,
+        messages=[
+            {"role": "system", "content": SYSTEM_NARRAR},
+            {"role": "user", "content": prompt},
+        ],
+        stream=True,
+    ) as stream:
+        for chunk in stream:
+            text = chunk.choices[0].delta.content
+            if text:
+                yield text

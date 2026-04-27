@@ -6,7 +6,7 @@ import plotly.express as px
 from portfolio import Carteira, Ativo, CLASSES, CLASSES_CORES
 from market_data import get_batch_prices, TESOURO_TITULOS
 from simulator import simular_carteira, impacto_por_ativo
-from agent import extrair_choque, narrar_resultado
+from agent import extrair_choque, narrar_resultado_stream
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
