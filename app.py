@@ -7,6 +7,7 @@ from portfolio import Carteira, Ativo, CLASSES, CLASSES_CORES
 from market_data import get_batch_prices, TESOURO_TITULOS
 from simulator import simular_carteira, impacto_por_ativo
 from agent import extrair_choque, narrar_resultado_stream
+from stress_test import CENARIOS_HISTORICOS, rodar_todos
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -132,8 +133,12 @@ with st.sidebar:
     st.markdown("### 📊 Carteira")
     st.caption("Monte Carlo · IA · Macro")
     st.divider()
-    pagina = st.radio("nav", ["🏠  Carteira", "🔮  Simulador", "📈  Análise"],
-                      label_visibility="collapsed")
+    pagina = st.radio("nav", [
+    "🏠  Carteira",
+    "🔮  Simulador",
+    "💥  Stress Test",
+    "📈  Análise",
+], label_visibility="collapsed")
     st.divider()
     if carteira.ativos:
         st.caption(f"**{len(carteira.ativos)}** ativos")
@@ -579,3 +584,134 @@ elif pagina == "📈  Análise":
         }).background_gradient(subset=["P&L (%)"], cmap="RdYlGn", vmin=-20, vmax=20),
         use_container_width=True, hide_index=True,
     )
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA — STRESS TEST
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif pagina == "💥  Stress Test":
+    st.title("Stress Test Histórico")
+    st.caption("Impacto dos maiores choques do mercado brasileiro na sua carteira")
+
+    if not carteira.ativos:
+        st.warning("Cadastre ativos na página Carteira primeiro.")
+        st.stop()
+
+    # ── Tabela de cenários disponíveis ───────────────────────────────────────
+    st.markdown("#### Cenários incluídos")
+    df_cen = pd.DataFrame([{
+        "Cenário":   c.nome,
+        "Período":   c.periodo,
+        "Descrição": c.descricao,
+    } for c in CENARIOS_HISTORICOS])
+    st.dataframe(df_cen, use_container_width=True, hide_index=True)
+
+    st.divider()
+
+    if st.button("💥  Rodar todos os stress tests", type="primary", use_container_width=True):
+        with st.spinner("Rodando 6 cenários × 10.000 simulações cada..."):
+            df_res, resultados = rodar_todos(carteira)
+
+        valor_base = carteira.valor_total_atual
+
+        # ── Tabela de resultados ─────────────────────────────────────────────
+        st.markdown("#### Resultados comparativos")
+        st.dataframe(
+            df_res[["Cenário", "Período", "Choque direto", "P10 (%)", "P50 (%)", "P90 (%)"]
+            ].style.format({
+                "Choque direto": "{:+.1f}%",
+                "P10 (%)":       "{:+.1f}%",
+                "P50 (%)":       "{:+.1f}%",
+                "P90 (%)":       "{:+.1f}%",
+            }).background_gradient(subset=["P50 (%)"], cmap="RdYlGn", vmin=-40, vmax=20),
+            use_container_width=True, hide_index=True,
+        )
+
+        st.divider()
+
+        # ── Gráfico comparativo de barras ────────────────────────────────────
+        st.markdown("#### Impacto no patrimônio por cenário")
+
+        col_g1, col_g2 = st.columns(2)
+
+        with col_g1:
+            # Barras: P10, P50, P90 por cenário
+            fig_bar = go.Figure()
+            nomes = df_res["Cenário"].tolist()
+            cores_map = {"P10 (%)": "#f87171", "P50 (%)": "#fbbf24", "P90 (%)": "#34d399"}
+
+            for col, cor in cores_map.items():
+                fig_bar.add_trace(go.Bar(
+                    name=col.replace(" (%)", ""),
+                    x=nomes,
+                    y=df_res[col].tolist(),
+                    marker_color=cor,
+                    opacity=0.85,
+                    text=df_res[col].apply(lambda v: f"{v:+.1f}%"),
+                    textposition="outside",
+                    textfont=dict(family="DM Mono", size=10, color="#8888aa"),
+                ))
+
+            fig_bar.add_hline(y=0, line_color="#2a2a3a", line_width=1)
+            fig_bar.update_layout(
+                barmode="group",
+                plot_bgcolor="#0a0a0f", paper_bgcolor="#0a0a0f",
+                font=dict(color="#8888aa", family="DM Mono"),
+                xaxis=dict(gridcolor="#1e1e2e", tickangle=-20,
+                           tickfont=dict(size=10, color="#8888aa")),
+                yaxis=dict(gridcolor="#1e1e2e", zeroline=False,
+                           ticksuffix="%", tickfont=dict(color="#555570")),
+                legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(color="#8888aa")),
+                margin=dict(t=30, b=80, l=50, r=20),
+            )
+            st.plotly_chart(fig_bar, use_container_width=True)
+
+        with col_g2:
+            # Impacto em R$ (choque direto)
+            cores_r = ["#f87171" if v < 0 else "#34d399" for v in df_res["Impacto (R$)"]]
+            fig_r = go.Figure(go.Bar(
+                x=df_res["Impacto (R$)"].tolist(),
+                y=df_res["Cenário"].tolist(),
+                orientation="h",
+                marker_color=cores_r,
+                text=df_res["Impacto (R$)"].apply(lambda v: f"R$ {v:+,.0f}"),
+                textposition="outside",
+                textfont=dict(family="DM Mono", size=10, color="#8888aa"),
+                hovertemplate="<b>%{y}</b><br>R$ %{x:+,.2f}<extra></extra>",
+            ))
+            fig_r.add_vline(x=0, line_color="#2a2a3a", line_width=1)
+            fig_r.update_layout(
+                title=dict(text="Impacto direto (R$)", font=dict(color="#8888aa", size=13)),
+                plot_bgcolor="#0a0a0f", paper_bgcolor="#0a0a0f",
+                font=dict(color="#8888aa", family="DM Mono"),
+                xaxis=dict(gridcolor="#1e1e2e", zeroline=False,
+                           tickfont=dict(color="#555570")),
+                yaxis=dict(gridcolor="rgba(0,0,0,0)",
+                           tickfont=dict(color="#e8e8f0", size=11)),
+                margin=dict(t=40, b=20, l=10, r=100),
+            )
+            st.plotly_chart(fig_r, use_container_width=True)
+
+        st.divider()
+
+        # ── Pior e melhor cenário ────────────────────────────────────────────
+        idx_pior   = df_res["P50 (%)"].idxmin()
+        idx_melhor = df_res["P50 (%)"].idxmax()
+
+        c_pior, c_melhor = st.columns(2)
+        with c_pior:
+            row = df_res.iloc[idx_pior]
+            st.error(
+                f"**💀 Pior cenário: {row['Cenário']}**\n\n"
+                f"Mediano: **{row['P50 (%)']:+.1f}%** "
+                f"(R$ {row['P50 (R$)']:,.2f})\n\n"
+                f"Pessimista: **{row['P10 (%)']:+.1f}%**"
+            )
+        with c_melhor:
+            row = df_res.iloc[idx_melhor]
+            st.success(
+                f"**🟢 Cenário menos severo: {row['Cenário']}**\n\n"
+                f"Mediano: **{row['P50 (%)']:+.1f}%** "
+                f"(R$ {row['P50 (R$)']:,.2f})\n\n"
+                f"Otimista: **{row['P90 (%)']:+.1f}%**"
+            )
