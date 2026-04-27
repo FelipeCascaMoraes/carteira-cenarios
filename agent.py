@@ -4,13 +4,13 @@ import os
 import json
 from dotenv import load_dotenv
 from agno.agent import Agent
-from agno.models.google import Gemini
+from agno.models.groq import Groq
 from macro_model import VARIAVEIS_MACRO
 from simulator import ResultadoSimulacao
 
 load_dotenv()
 
-MODEL = Gemini(id="gemini-2.0-flash", api_key=os.getenv("GOOGLE_API_KEY"))
+MODEL = Groq(id="llama-3.3-70b-versatile", api_key=os.getenv("GROQ_API_KEY"))
 
 # ─── Agente 1: extração de variáveis macro ───────────────────────────────────
 

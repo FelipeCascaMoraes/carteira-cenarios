@@ -10,7 +10,7 @@ requests>=2.31.0
 # Cálculo numérico
 numpy>=1.26.0
 pandas>=2.2.0
-
+matplotlib>=3.9.0
 # Visualização
 plotly>=5.22.0
 
@@ -21,4 +21,4 @@ anthropic>=0.28.0
 python-dotenv>=1.0.0
 #IA
 agno>=1.0.0
-google-genai>=1.0.0
+groq>=0.9.0

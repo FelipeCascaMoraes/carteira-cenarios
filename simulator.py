@@ -95,7 +95,7 @@ def simular_carteira(
         retorno_p10_pct=_pct(p10, valor_base),
         retorno_p50_pct=_pct(p50, valor_base),
         retorno_p90_pct=_pct(p90, valor_base),
-        impacto_choque_rs=impacto_choque_total,
+        impacto_choque_real=impacto_choque_total,
         impacto_choque_pct=_pct(valor_base + impacto_choque_total, valor_base),
         distribuicao=totais,
         choque_aplicado=choque,
