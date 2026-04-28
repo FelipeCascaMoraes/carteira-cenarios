@@ -26,10 +26,12 @@ MUTED    = "#64748b"
 TEXT_SEC = "#94a3b8"
 TEXT_PRI = "#e2e8f0"
 ACCENT   = "#475569"
+
 # Aliases para gráficos
-TEXT      = TEXT_PRI          # cor principal de texto
-POS       = "#4ade80"         # verde — retorno positivo
-NEG       = "#f87171"         # vermelho — retorno negativo
+TEXT = TEXT_PRI
+POS  = "#4ade80"
+NEG  = "#f87171"
+
 PLOT_LAYOUT = dict(
     plot_bgcolor=BG, paper_bgcolor=BG,
     font=dict(color=TEXT_SEC, family="DM Mono"),
@@ -613,11 +615,16 @@ elif pagina == "📈  Análise":
             textinfo="percent", textfont=dict(size=11),
             hovertemplate="<b>%{label}</b><br>%{value:.1f}%<extra></extra>",
         ))
-        fig_pie.add_annotation(text=f"R$ {total:,.0f}", x=0.5, y=0.5,
-                               font=dict(size=12, color=TEXT), showarrow=False)
-        fig_pie.update_layout(**{**PLOT_LAYOUT, "showlegend": True,
-                                 "legend": dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
-                                 "margin": dict(t=20, b=20, l=20, r=20)})
+        fig_pie.add_annotation(
+            text=f"R$ {total:,.0f}", x=0.5, y=0.5,
+            font=dict(size=12, color=TEXT), showarrow=False,
+        )
+        fig_pie.update_layout(**PLOT_LAYOUT)
+        fig_pie.update_layout(
+            showlegend=True,
+            legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
+            margin=dict(t=20, b=20, l=20, r=20),
+        )
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
@@ -631,7 +638,8 @@ elif pagina == "📈  Análise":
             textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
         fig_pl.add_vline(x=0, line_color=BORDER, line_width=1)
-        fig_pl.update_layout(**{**PLOT_LAYOUT, "margin": dict(t=20, b=20, l=10, r=80)})
+        fig_pl.update_layout(**PLOT_LAYOUT)
+        fig_pl.update_layout(margin=dict(t=20, b=20, l=10, r=80))
         st.plotly_chart(fig_pl, use_container_width=True)
 
     st.divider()
@@ -650,17 +658,21 @@ elif pagina == "📈  Análise":
         fig_acum.add_trace(go.Scatter(
             x=acum_cart.index, y=acum_cart.values * 100,
             name="Carteira", mode="lines",
-            line=dict(color=ACCENT, width=2.5),
+            line=dict(color="#3b82f6", width=2.5),
         ))
 
         # Benchmarks
-        cores_bench = {"Ibovespa": "#f59e0b", "CDI": "#16a34a", "IPCA": "#dc2626"}
+        cores_bench = {
+            "Ibovespa": "#f59e0b",
+            "CDI":      "#16a34a",
+            "IPCA":     "#dc2626",
+        }
         for col in acum_bench.columns:
-            if col in acum_bench:
+            if col in cores_bench:
                 fig_acum.add_trace(go.Scatter(
                     x=acum_bench.index, y=acum_bench[col].values * 100,
                     name=col, mode="lines",
-                    line=dict(color=cores_bench.get(col, MUTED), width=1.5, dash="dash"),
+                    line=dict(color=cores_bench[col], width=1.5, dash="dash"),
                 ))
 
         fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
@@ -668,7 +680,7 @@ elif pagina == "📈  Análise":
         fig_acum.update_layout(
             yaxis_title="Retorno acumulado (%)",
             yaxis_ticksuffix="%",
-            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11, color=TEXT_SEC)),
             margin=dict(t=20, b=40, l=60, r=20),
             hovermode="x unified",
         )
@@ -678,7 +690,8 @@ elif pagina == "📈  Análise":
         resumo = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
         for col in acum_bench.columns:
             s = acum_bench[col].dropna()
-            if len(s): resumo[col] = f"{s.iloc[-1]*100:+.1f}%"
+            if len(s):
+                resumo[col] = f"{s.iloc[-1]*100:+.1f}%"
         st.dataframe(pd.DataFrame([resumo]), use_container_width=True, hide_index=True)
     else:
         st.caption("Histórico insuficiente para gerar o gráfico.")
@@ -695,9 +708,9 @@ elif pagina == "📈  Análise":
         fig_corr = go.Figure(go.Heatmap(
             z=corr.values, x=corr.columns.tolist(), y=corr.index.tolist(),
             colorscale=[
-                [0.0,  "#dc2626"],
-                [0.5,  "#ffffff"],
-                [1.0,  "#16a34a"],
+                [0.0, "#dc2626"],
+                [0.5, "#ffffff"],
+                [1.0, "#16a34a"],
             ],
             zmin=-1, zmax=1,
             text=corr.round(2).values,
@@ -707,8 +720,8 @@ elif pagina == "📈  Análise":
             showscale=True,
             colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=10)),
         ))
+        fig_corr.update_layout(**PLOT_LAYOUT)
         fig_corr.update_layout(
-            **PLOT_LAYOUT,
             xaxis=dict(side="bottom", tickfont=dict(size=11)),
             yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
             margin=dict(t=20, b=60, l=80, r=20),
@@ -732,9 +745,11 @@ elif pagina == "📈  Análise":
             text=df_peso["% Carteira"].apply(lambda v: f"{v:.1f}%"),
             textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
-        fig_peso.update_layout(**{**PLOT_LAYOUT,
-                                  "xaxis": dict(gridcolor=BORDER, zeroline=False, ticksuffix="%"),
-                                  "margin": dict(t=20, b=20, l=10, r=60)})
+        fig_peso.update_layout(**PLOT_LAYOUT)
+        fig_peso.update_layout(
+            xaxis=dict(gridcolor=BORDER, zeroline=False, ticksuffix="%"),
+            margin=dict(t=20, b=20, l=10, r=60),
+        )
         st.plotly_chart(fig_peso, use_container_width=True)
 
     with col4:
@@ -859,7 +874,6 @@ elif pagina == "💥  Stress Test":
                 textfont=dict(family="DM Mono", size=10, color=TEXT_SEC),
                 hovertemplate="<b>%{y}</b><br>R$ %{x:+,.2f}<extra></extra>",
             ))
-            # ✅
             fig_r.update_layout(**plotly_layout({"margin": dict(t=40, b=20, l=10, r=100)}))
             fig_r.update_layout(
                 title=dict(text="Impacto direto (R$)", font=dict(color=TEXT_SEC, size=13)),
