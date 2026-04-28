@@ -8,6 +8,11 @@ from market_data import get_batch_prices, TESOURO_TITULOS
 from simulator import simular_carteira, impacto_por_ativo
 from agent import extrair_choque, narrar_resultado_stream
 from stress_test import CENARIOS_HISTORICOS, rodar_todos
+from analytics import (
+    retorno_acumulado_carteira,
+    acumulado_benchmarks,
+    matriz_correlacao,
+)
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -21,6 +26,17 @@ MUTED    = "#64748b"
 TEXT_SEC = "#94a3b8"
 TEXT_PRI = "#e2e8f0"
 ACCENT   = "#475569"
+# Aliases para gráficos
+TEXT      = TEXT_PRI          # cor principal de texto
+POS       = "#4ade80"         # verde — retorno positivo
+NEG       = "#f87171"         # vermelho — retorno negativo
+PLOT_LAYOUT = dict(
+    plot_bgcolor=BG, paper_bgcolor=BG,
+    font=dict(color=TEXT_SEC, family="DM Mono"),
+    xaxis=dict(gridcolor=BORDER, zeroline=False),
+    yaxis=dict(gridcolor=BORDER, zeroline=False),
+    margin=dict(t=30, b=40, l=50, r=20),
+)
 
 st.markdown(f"""
 <style>
@@ -564,137 +580,192 @@ elif pagina == "🔮  Simulador":
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif pagina == "📈  Análise":
-    st.title("Análise da Carteira")
+    st.title("Análise")
 
     if not carteira.ativos:
-        st.warning("Cadastre ativos na página Carteira primeiro.")
+        st.warning("Cadastre ativos primeiro.")
         st.stop()
 
     df = carteira.para_dataframe()
     total = carteira.valor_total_atual
 
+    # ── KPIs ─────────────────────────────────────────────────────────────────
     k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Patrimônio",   f"R$ {total:,.2f}")
-    k2.metric("P&L Total",    f"R$ {carteira.pl_total_reais:+,.2f}",
-              delta=f"{carteira.pl_total_pct:+.1f}%")
-    k3.metric("Ativos",       len(carteira.ativos))
-    k4.metric("Classes",      df["Classe"].nunique())
+    k1.metric("Patrimônio",    f"R$ {total:,.2f}")
+    k2.metric("P&L",           f"R$ {carteira.pl_total_reais:+,.2f}", delta=f"{carteira.pl_total_pct:+.1f}%")
+    k3.metric("Ativos",        len(carteira.ativos))
+    k4.metric("Classes",       df["Classe"].nunique())
     maior = df.loc[df["% Carteira"].idxmax()]
-    k5.metric("Maior posição", maior["Ticker"],
-              delta=f"{maior['% Carteira']:.1f}% da carteira")
+    k5.metric("Maior posição", maior["Ticker"], delta=f"{maior['% Carteira']:.1f}%")
 
     st.divider()
+
+    # ── Pizza + P&L ───────────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown("#### Alocação por classe")
-        aloc = carteira.alocacao_por_classe()
-        labels = [CLASSES.get(k, k) for k in aloc]
-        values = list(aloc.values())
-        cores  = [CLASSES_CORES.get(k, "#3b82f6") for k in aloc]
-
+        st.markdown("**Alocação por classe**")
+        aloc  = carteira.alocacao_por_classe()
+        cores = [CLASSES_CORES.get(k, ACCENT) for k in aloc]
         fig_pie = go.Figure(go.Pie(
-            labels=labels, values=values,
-            hole=0.55,
-            marker=dict(colors=cores, line=dict(color=BG, width=2)),
-            textinfo="percent", textfont=dict(family="DM Mono", size=12, color=TEXT_PRI),
+            labels=[CLASSES.get(k, k) for k in aloc], values=list(aloc.values()),
+            hole=0.5, marker=dict(colors=cores, line=dict(color="#fff", width=2)),
+            textinfo="percent", textfont=dict(size=11),
             hovertemplate="<b>%{label}</b><br>%{value:.1f}%<extra></extra>",
         ))
-        fig_pie.add_annotation(
-            text=f"<b>R$ {total:,.0f}</b>", x=0.5, y=0.5,
-            font=dict(size=14, color=TEXT_PRI, family="DM Mono"),
-            showarrow=False,
-        )
-        fig_pie.update_layout(
-            showlegend=True,
-            legend=dict(font=dict(color=TEXT_SEC, size=11), bgcolor="rgba(0,0,0,0)"),
-            **plotly_layout({"margin": dict(t=20, b=20, l=20, r=20)}),
-        )
+        fig_pie.add_annotation(text=f"R$ {total:,.0f}", x=0.5, y=0.5,
+                               font=dict(size=12, color=TEXT), showarrow=False)
+        fig_pie.update_layout(**{**PLOT_LAYOUT, "showlegend": True,
+                                 "legend": dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
+                                 "margin": dict(t=20, b=20, l=20, r=20)})
         st.plotly_chart(fig_pie, use_container_width=True)
 
     with col2:
-        st.markdown("#### P&L por ativo")
-        df_pl = df.sort_values("P&L (R$)")
-        cores_pl = ["#f87171" if v < 0 else "#4ade80" for v in df_pl["P&L (R$)"]]
-
-        fig_pl = go.Figure(go.Bar(
-            x=df_pl["P&L (R$)"], y=df_pl["Ticker"],
-            orientation="h",
-            marker_color=cores_pl,
+        st.markdown("**P&L por ativo**")
+        df_pl    = df.sort_values("P&L (R$)")
+        cores_pl = [NEG if v < 0 else POS for v in df_pl["P&L (R$)"]]
+        fig_pl   = go.Figure(go.Bar(
+            x=df_pl["P&L (R$)"], y=df_pl["Ticker"], orientation="h",
+            marker_color=cores_pl, opacity=0.8,
             text=df_pl["P&L (R$)"].apply(lambda v: f"R$ {v:+,.0f}"),
-            textposition="outside",
-            textfont=dict(family="DM Mono", size=11, color=TEXT_SEC),
-            hovertemplate="<b>%{y}</b><br>P&L: R$ %{x:+,.2f}<extra></extra>",
+            textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
         fig_pl.add_vline(x=0, line_color=BORDER, line_width=1)
-        fig_pl.update_layout(**plotly_layout({"margin": dict(t=20, b=20, l=10, r=80)}))
-        fig_pl.update_layout(
-            xaxis=dict(gridcolor=BORDER, zeroline=False, tickfont=dict(family="DM Mono", color=MUTED)),
-            yaxis=dict(gridcolor="rgba(0,0,0,0)", tickfont=dict(family="DM Mono", color=TEXT_PRI)),
-        )
+        fig_pl.update_layout(**{**PLOT_LAYOUT, "margin": dict(t=20, b=20, l=10, r=80)})
         st.plotly_chart(fig_pl, use_container_width=True)
 
     st.divider()
+
+    # ── Retorno acumulado vs benchmarks ──────────────────────────────────────
+    st.markdown("**Retorno acumulado — Carteira vs Benchmarks (12 meses)**")
+
+    with st.spinner("Carregando histórico..."):
+        acum_cart  = retorno_acumulado_carteira(carteira)
+        acum_bench = acumulado_benchmarks()
+
+    if acum_cart is not None:
+        fig_acum = go.Figure()
+
+        # Carteira
+        fig_acum.add_trace(go.Scatter(
+            x=acum_cart.index, y=acum_cart.values * 100,
+            name="Carteira", mode="lines",
+            line=dict(color=ACCENT, width=2.5),
+        ))
+
+        # Benchmarks
+        cores_bench = {"Ibovespa": "#f59e0b", "CDI": "#16a34a", "IPCA": "#dc2626"}
+        for col in acum_bench.columns:
+            if col in acum_bench:
+                fig_acum.add_trace(go.Scatter(
+                    x=acum_bench.index, y=acum_bench[col].values * 100,
+                    name=col, mode="lines",
+                    line=dict(color=cores_bench.get(col, MUTED), width=1.5, dash="dash"),
+                ))
+
+        fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
+        fig_acum.update_layout(**PLOT_LAYOUT)
+        fig_acum.update_layout(
+            yaxis_title="Retorno acumulado (%)",
+            yaxis_ticksuffix="%",
+            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11)),
+            margin=dict(t=20, b=40, l=60, r=20),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_acum, use_container_width=True)
+
+        # Tabela resumo de retorno acumulado
+        resumo = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
+        for col in acum_bench.columns:
+            s = acum_bench[col].dropna()
+            if len(s): resumo[col] = f"{s.iloc[-1]*100:+.1f}%"
+        st.dataframe(pd.DataFrame([resumo]), use_container_width=True, hide_index=True)
+    else:
+        st.caption("Histórico insuficiente para gerar o gráfico.")
+
+    st.divider()
+
+    # ── Correlação ────────────────────────────────────────────────────────────
+    st.markdown("**Correlação entre ativos (últimos 12 meses)**")
+
+    with st.spinner("Calculando correlações..."):
+        corr = matriz_correlacao(carteira)
+
+    if corr is not None and not corr.empty:
+        fig_corr = go.Figure(go.Heatmap(
+            z=corr.values, x=corr.columns.tolist(), y=corr.index.tolist(),
+            colorscale=[
+                [0.0,  "#dc2626"],
+                [0.5,  "#ffffff"],
+                [1.0,  "#16a34a"],
+            ],
+            zmin=-1, zmax=1,
+            text=corr.round(2).values,
+            texttemplate="%{text}",
+            textfont=dict(size=11, color=TEXT),
+            hovertemplate="<b>%{x} × %{y}</b><br>Correlação: %{z:.2f}<extra></extra>",
+            showscale=True,
+            colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=10)),
+        ))
+        fig_corr.update_layout(
+            **PLOT_LAYOUT,
+            xaxis=dict(side="bottom", tickfont=dict(size=11)),
+            yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
+            margin=dict(t=20, b=60, l=80, r=20),
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+        st.caption("Verde = correlação positiva · Vermelho = correlação negativa · Branco = sem correlação")
+    else:
+        st.caption("São necessários pelo menos 2 ativos com histórico disponível.")
+
+    st.divider()
+
+    # ── Peso + concentração ───────────────────────────────────────────────────
     col3, col4 = st.columns(2)
 
     with col3:
-        st.markdown("#### Peso por ativo")
+        st.markdown("**Peso por ativo**")
         df_peso = df.sort_values("% Carteira", ascending=True)
         fig_peso = go.Figure(go.Bar(
-            x=df_peso["% Carteira"], y=df_peso["Ticker"],
-            orientation="h",
-            marker=dict(
-                color=df_peso["% Carteira"],
-                colorscale=[[0, "#1e3a5f"], [0.5, "#3b82f6"], [1, "#7c5cfc"]],
-                showscale=False,
-            ),
+            x=df_peso["% Carteira"], y=df_peso["Ticker"], orientation="h",
+            marker_color=ACCENT, opacity=0.7,
             text=df_peso["% Carteira"].apply(lambda v: f"{v:.1f}%"),
-            textposition="outside",
-            textfont=dict(family="DM Mono", size=11, color=TEXT_SEC),
-            hovertemplate="<b>%{y}</b><br>%{x:.1f}%<extra></extra>",
+            textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
-        # ✅
-        fig_peso.update_layout(**plotly_layout({"margin": dict(t=20, b=20, l=10, r=60)}))
-        fig_peso.update_layout(
-            xaxis=dict(gridcolor=BORDER, zeroline=False,
-                    tickfont=dict(family="DM Mono", color=MUTED), ticksuffix="%"),
-            yaxis=dict(gridcolor="rgba(0,0,0,0)",
-                    tickfont=dict(family="DM Mono", color=TEXT_PRI)),
-        )
+        fig_peso.update_layout(**{**PLOT_LAYOUT,
+                                  "xaxis": dict(gridcolor=BORDER, zeroline=False, ticksuffix="%"),
+                                  "margin": dict(t=20, b=20, l=10, r=60)})
         st.plotly_chart(fig_peso, use_container_width=True)
 
     with col4:
-        st.markdown("#### Concentração e risco")
-        for _, row in df.iterrows():
-            pct = row["% Carteira"]
-            if pct > 30:
-                st.error(f"⚠️ **{row['Ticker']}** representa **{pct:.1f}%** da carteira — alta concentração")
-            elif pct > 20:
-                st.warning(f"🟡 **{row['Ticker']}** representa **{pct:.1f}%** da carteira")
+        st.markdown("**Concentração**")
+        alertas = [(r["Ticker"], r["% Carteira"]) for _, r in df.iterrows() if r["% Carteira"] > 20]
+        if alertas:
+            for ticker, pct in alertas:
+                if pct > 30: st.error(f"**{ticker}** representa {pct:.1f}% — alta concentração")
+                else:        st.warning(f"**{ticker}** representa {pct:.1f}%")
+        else:
+            st.success("Nenhum ativo com concentração acima de 20%.")
 
-        pesos = df["% Carteira"].values / 100
-        hhi = np.sum(pesos ** 2)
+        pesos   = df["% Carteira"].values / 100
+        hhi     = np.sum(pesos ** 2)
         n_equiv = 1 / hhi if hhi > 0 else 1
-        score = min(100, int(n_equiv / len(df) * 100 + (1 - hhi) * 60))
-
-        st.metric("Score de diversificação", f"{score}/100",
-                  delta="Bom" if score > 60 else "Melhorar",
+        score   = min(100, int(n_equiv / len(df) * 100 + (1 - hhi) * 60))
+        st.metric("Score de diversificação", f"{score} / 100",
+                  delta="Bom" if score > 60 else "A melhorar",
                   delta_color="normal" if score > 60 else "inverse")
 
-        st.markdown("**Alocação por classe**")
+        st.markdown("**Por classe**")
         for classe, pct in sorted(carteira.alocacao_por_classe().items(), key=lambda x: -x[1]):
-            cor = CLASSES_CORES.get(classe, "#3b82f6")
             st.markdown(
-                f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                f'padding:6px 0;border-bottom:1px solid {BORDER}">'
-                f'<span style="color:{TEXT_SEC};font-size:0.85rem">{CLASSES.get(classe, classe)}</span>'
-                f'<span style="color:{cor};font-family:DM Mono,monospace;font-size:0.85rem;font-weight:600">'
-                f'{pct:.1f}%</span></div>',
-                unsafe_allow_html=True,
-            )
+                f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
+                f'border-bottom:1px solid {BORDER}">'
+                f'<span style="color:{MUTED};font-size:0.85rem">{CLASSES.get(classe,classe)}</span>'
+                f'<span style="color:{ACCENT};font-size:0.85rem;font-weight:600">{pct:.1f}%</span>'
+                f'</div>', unsafe_allow_html=True)
 
     st.divider()
-    st.markdown("#### Visão detalhada")
+    st.markdown("**Visão detalhada**")
     st.dataframe(
         df.style.format({
             "Preço Médio":    "R$ {:.2f}",
