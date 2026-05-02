@@ -356,9 +356,68 @@ if pagina == "🏠  Carteira":
               delta=f"{carteira.pl_total_pct:+.2f}%")
     m4.metric("Ativos",         len(carteira.ativos))
 
+    st.markdown("**Por classe**")
+    for classe, pct in sorted(carteira.alocacao_por_classe().items(), key=lambda x: -x[1]):
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
+                f'border-bottom:1px solid {BORDER}">'
+                f'<span style="color:{MUTED};font-size:0.85rem">{CLASSES.get(classe,classe)}</span>'
+                f'<span style="color:{ACCENT};font-size:0.85rem;font-weight:600">{pct:.1f}%</span>'
+                f'</div>', unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Evolução patrimonial ──────────────────────────────────────────────────
+    st.markdown("**Evolução patrimonial (12 meses)**")
+
+    with st.spinner("Carregando histórico..."):
+        from analytics import retorno_acumulado_carteira
+        acum = retorno_acumulado_carteira(carteira)
+
+    if acum is not None and len(acum) > 1:
+        valor_inicial = carteira.valor_total_investido
+        serie_valor   = valor_inicial * (1 + acum)
+        retorno_final = float(acum.iloc[-1]) * 100
+        cor_linha     = POS if retorno_final >= 0 else NEG
+        cor_fill      = "rgba(74,222,128,0.08)" if retorno_final >= 0 else "rgba(248,113,113,0.08)"
+
+        fig_evol = go.Figure()
+        fig_evol.add_trace(go.Scatter(
+            x=serie_valor.index,
+            y=serie_valor.values,
+            mode="lines",
+            fill="tozeroy",
+            fillcolor=cor_fill,
+            line=dict(color=cor_linha, width=2),
+            hovertemplate="%{x|%d/%m/%Y}<br>R$ %{y:,.2f}<extra></extra>",
+        ))
+        fig_evol.add_hline(
+            y=valor_inicial,
+            line_color=MUTED, line_dash="dash", line_width=1,
+            annotation_text="Investido",
+            annotation_font_color=MUTED,
+            annotation_position="bottom right",
+        )
+        fig_evol.update_layout(**plotly_layout())
+        fig_evol.update_layout(
+            yaxis_title="Valor (R$)",
+            yaxis_tickprefix="R$ ",
+            showlegend=False,
+            height=220,
+            margin=dict(t=10, b=40, l=80, r=20),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_evol, use_container_width=True)
+    else:
+        st.caption("Histórico insuficiente para gerar o gráfico.")
+
     st.divider()
     df = carteira.para_dataframe()
+    
 
+
+    
+    
     def fmt_preco_atual(v):
         return f"R$ {v:.2f}" if v and not pd.isna(v) else "—"
 
@@ -1029,18 +1088,10 @@ elif pagina == "📈  Análise":
                 f'</div>', unsafe_allow_html=True)
 
     st.divider()
-    st.markdown("**Visão detalhada**")
-    st.dataframe(
-        df.style.format({
-            "Preço Médio":    "R$ {:.2f}",
-            "Investido (R$)": "R$ {:,.2f}",
-            "Atual (R$)":     "R$ {:,.2f}",
-            "P&L (R$)":       "R$ {:+,.2f}",
-            "P&L (%)":        "{:+.2f}%",
-            "% Carteira":     "{:.1f}%",
-        }).background_gradient(subset=["P&L (%)"], cmap="RdYlGn", vmin=-20, vmax=20),
-        use_container_width=True, hide_index=True,
-    )
+
+    
+
+    
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PÁGINA 5 — ASSESSOR IA
