@@ -9,7 +9,7 @@ from simulator import simular_carteira, impacto_por_ativo
 from agent import extrair_choque
 from agent_chat import narrar_resultado_stream, chat_stream, sugerir_rebalanceamento_stream
 from stress_test import CENARIOS_HISTORICOS, rodar_todos
-from risk_metricks import calcular_metricas, interpretar_sharpe, interpretar_drawdown
+from risk_metrics import calcular_metricas, interpretar_sharpe, interpretar_drawdown
 from analytics import (
     retorno_acumulado_carteira,
     acumulado_benchmarks,
