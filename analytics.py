@@ -6,6 +6,24 @@ import yfinance as yf
 import requests
 from datetime import datetime, timedelta
 from portfolio import Carteira
+import streamlit as st
+
+PERIODO_DIAS = 365
+
+@st.cache_data(ttl=300, show_spinner=False)
+def retorno_acumulado_carteira(carteira: Carteira, days: int = 365) -> pd.Series | None:
+    # corpo da função que já existia, sem alteração
+    ...
+
+@st.cache_data(ttl=300, show_spinner=False)
+def acumulado_benchmarks(days: int = 365) -> pd.DataFrame:
+    # corpo da função que já existia, sem alteração
+    ...
+
+@st.cache_data(ttl=300, show_spinner=False)
+def matriz_correlacao(carteira: Carteira, days: int = 365) -> pd.DataFrame | None:
+    # corpo da função que já existia, sem alteração
+    ...
 
 PERIODO_DIAS = 365
 

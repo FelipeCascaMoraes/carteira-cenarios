@@ -11,6 +11,21 @@ import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
 from analytics import retorno_acumulado_carteira, _strip_tz
+import streamlit as st  # adicione no topo
+
+def calcular_metricas(carteira, days: int = 365) -> dict:
+    return _calcular_metricas_cached(
+        tuple((a.ticker, a.classe, a.quantidade, a.preco_medio, a.preco_atual or a.preco_medio)
+              for a in carteira.ativos),
+        carteira.valor_total_atual,
+        days,
+    )
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _calcular_metricas_cached(ativos_tuple, valor_total, days):
+    # aqui você referencia carteira via ativos_tuple se precisar
+    # mas na prática a função usa yfinance pelos tickers, não o objeto
+    ...
 
 PERIODO_DIAS = 365
 CDI_ANUAL    = 0.105  # fallback ~10.5% a.a.

@@ -3,6 +3,11 @@ import requests
 import numpy as np
 import time
 from datetime import datetime, timedelta
+import streamlit as st  # adicione no topo
+
+@st.cache_data(ttl=300, show_spinner=False)
+def get_batch_prices(tickers):
+    return {t: get_current_price(t) for t in tickers}
 
 _cache: dict[str, tuple[float, float]] = {}
 CACHE_TTL = 300
