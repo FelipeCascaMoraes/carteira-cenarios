@@ -6,7 +6,8 @@ import plotly.express as px
 from portfolio import Carteira, Ativo, CLASSES, CLASSES_CORES
 from market_data import get_batch_prices, TESOURO_TITULOS
 from simulator import simular_carteira, impacto_por_ativo
-from agent import extrair_choque, narrar_resultado_stream
+from agent import extrair_choque
+from agent_chat import narrar_resultado_stream, chat_stream, sugerir_rebalanceamento_stream
 from stress_test import CENARIOS_HISTORICOS, rodar_todos
 from analytics import (
     retorno_acumulado_carteira,
@@ -18,7 +19,6 @@ from analytics import (
 
 st.set_page_config(page_title="Carteira", page_icon="📊", layout="wide")
 
-# Paleta slate
 BG       = "#0f172a"
 SURFACE  = "#1e293b"
 BORDER   = "#334155"
@@ -27,7 +27,6 @@ TEXT_SEC = "#94a3b8"
 TEXT_PRI = "#e2e8f0"
 ACCENT   = "#475569"
 
-# Aliases para gráficos
 TEXT = TEXT_PRI
 POS  = "#4ade80"
 NEG  = "#f87171"
@@ -46,15 +45,38 @@ st.markdown(f"""
 
 html, body, [class*="css"] {{ font-family: 'Syne', sans-serif; }}
 
-/* Fundo */
 .stApp {{ background: {BG}; }}
 section[data-testid="stSidebar"] {{ background: {BG} !important; border-right: 1px solid {BORDER}; }}
 
-/* Header branco */
 header[data-testid="stHeader"], [data-testid="stToolbar"] {{ background: {BG} !important; }}
 header {{ background-color: {BG} !important; }}
 
-/* Textos gerais */
+/* Chat input */
+/* Chat input — seletores atualizados */
+div[data-testid="stChatInput"] {
+    background: #1e293b !important;
+    border: 1px solid #334155 !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stChatInput"] > div {
+    background: #1e293b !important;
+    border-radius: 12px !important;
+}
+div[data-testid="stChatInput"] textarea {
+    background: #1e293b !important;
+    color: #e2e8f0 !important;
+}
+div[data-testid="stChatInput"]:focus-within {
+    border-color: #475569 !important;
+    box-shadow: none !important;
+}
+
+/* Container fixo no fundo */
+[data-testid="stBottom"] > div {
+    background: #0f172a !important;
+    border-top: 1px solid #334155 !important;
+}
+
 p, span, li {{ color: {TEXT_SEC}; }}
 strong {{ color: {TEXT_PRI} !important; }}
 h1, h2, h3, h4 {{ color: {TEXT_PRI} !important; font-family: 'Syne', sans-serif !important; }}
@@ -67,14 +89,12 @@ h2 {{ font-weight: 700; }}
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] label {{ color: {TEXT_SEC} !important; }}
 
-/* Sidebar */
 section[data-testid="stSidebar"] p,
 section[data-testid="stSidebar"] span,
 section[data-testid="stSidebar"] label,
 section[data-testid="stSidebar"] div {{ color: {TEXT_SEC} !important; }}
 section[data-testid="stSidebar"] strong {{ color: {TEXT_PRI} !important; }}
 
-/* Métricas */
 [data-testid="metric-container"] {{
     background: {SURFACE};
     border: 1px solid {BORDER};
@@ -87,7 +107,6 @@ section[data-testid="stSidebar"] strong {{ color: {TEXT_PRI} !important; }}
 [data-testid="stMetricValue"] {{ color: {TEXT_PRI} !important; font-family: 'DM Mono', monospace !important; font-size: 1.4rem !important; }}
 [data-testid="stMetricDelta"] {{ font-family: 'DM Mono', monospace !important; font-size: 0.85rem !important; }}
 
-/* Botões */
 .stButton > button[kind="primary"] {{
     background: {ACCENT} !important;
     color: {TEXT_PRI} !important; border: none !important;
@@ -103,7 +122,6 @@ section[data-testid="stSidebar"] strong {{ color: {TEXT_PRI} !important; }}
 }}
 .stButton > button:not([kind="primary"]):hover {{ border-color: {MUTED} !important; color: {TEXT_PRI} !important; }}
 
-/* Inputs */
 [data-testid="stDataFrame"] {{ border: 1px solid {BORDER} !important; border-radius: 10px; overflow: hidden; }}
 [data-testid="stTextInput"] input, [data-testid="stNumberInput"] input {{
     background: {SURFACE} !important; border: 1px solid {BORDER} !important;
@@ -118,18 +136,15 @@ section[data-testid="stSidebar"] strong {{ color: {TEXT_PRI} !important; }}
 [data-testid="stSelectboxVirtualDropdown"] li,
 [data-testid="stSelectboxVirtualDropdown"] span {{ color: {TEXT_PRI} !important; background: {SURFACE} !important; }}
 
-/* Expander */
 [data-testid="stExpander"] {{ background: {SURFACE}; border: 1px solid {BORDER}; border-radius: 10px; }}
 [data-testid="stExpander"] summary p {{ color: {MUTED} !important; }}
 
-/* Misc */
 hr {{ border-color: {BORDER} !important; }}
 [data-testid="stAlert"] {{ border-radius: 10px !important; }}
 [data-testid="stAlert"] p {{ color: #93c5fd !important; }}
 [data-testid="stRadio"] label {{ color: {TEXT_SEC} !important; font-size: 0.9rem; padding: 6px 0; transition: color 0.2s; }}
 [data-testid="stRadio"] label:has(input:checked) {{ color: {TEXT_PRI} !important; }}
 
-/* Chat */
 [data-testid="stChatMessage"] {{
     background: {SURFACE} !important;
     border: 1px solid {BORDER} !important;
@@ -139,17 +154,14 @@ hr {{ border-color: {BORDER} !important; }}
 [data-testid="stChatMessage"] span,
 [data-testid="stChatMessage"] div {{ color: #cbd5e1 !important; }}
 
-/* Textarea */
 textarea {{
     background: {SURFACE} !important; border: 1px solid {BORDER} !important;
     color: {TEXT_PRI} !important; border-radius: 8px !important;
     font-family: 'Syne', sans-serif !important;
 }}
 
-/* Progress bar */
 [data-testid="stProgress"] > div > div {{ background: #3b82f6 !important; }}
 
-/* Tooltip customizado */
 .var-card {{
     background: #450a0a;
     border: 1px solid #7f1d1d;
@@ -186,7 +198,7 @@ textarea {{
 </style>
 """, unsafe_allow_html=True)
 
-# ─── Helpers de cor ──────────────────────────────────────────────────────────
+# ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def plotly_layout(extra=None):
     base = dict(
@@ -214,6 +226,10 @@ if "carteira" not in st.session_state:
     st.session_state.carteira = Carteira.carregar_json()
 if "historico_simulacoes" not in st.session_state:
     st.session_state.historico_simulacoes = []
+if "historico_chat" not in st.session_state:
+    st.session_state.historico_chat = []
+if "benchmarks_cache" not in st.session_state:
+    st.session_state.benchmarks_cache = None
 
 carteira: Carteira = st.session_state.carteira
 
@@ -228,6 +244,7 @@ with st.sidebar:
         "🔮  Simulador",
         "💥  Stress Test",
         "📈  Análise",
+        "💬  Assessor IA",
     ], label_visibility="collapsed")
     st.divider()
     if carteira.ativos:
@@ -236,6 +253,9 @@ with st.sidebar:
         cor = "🟢" if pl >= 0 else "🔴"
         st.caption(f"Patrimônio: **R$ {carteira.valor_total_atual:,.0f}**")
         st.caption(f"P&L total: {cor} **{pl:+.1f}%**")
+        if st.session_state.historico_chat:
+            n_msgs = len(st.session_state.historico_chat) // 2
+            st.caption(f"💬 **{n_msgs}** msg(s) no chat")
     else:
         st.caption("Nenhum ativo cadastrado")
 
@@ -393,7 +413,6 @@ elif pagina == "🔮  Simulador":
             st.error("Digite um cenário.")
             st.stop()
 
-        # 1. Extração com progresso
         prog = st.progress(0, text="🤖 Interpretando cenário...")
         choque, resumo = extrair_choque(cenario_texto)
         prog.progress(33, text="⚙️ Rodando simulações Monte Carlo...")
@@ -408,7 +427,6 @@ elif pagina == "🔮  Simulador":
                 cor = "normal" if v > 0 else "inverse"
                 cols_choque[i].metric(VARIAVEIS_MACRO[k], f"{v:+.1f}%", delta_color=cor)
 
-        # 2. Monte Carlo
         resultado = simular_carteira(carteira, choque)
         prog.progress(80, text="📊 Gerando visualizações...")
 
@@ -424,7 +442,6 @@ elif pagina == "🔮  Simulador":
         prog.progress(100, text="✅ Concluído!")
         prog.empty()
 
-        # 3. Métricas com badges
         st.divider()
         st.markdown(
             f"**Resultado do cenário:** "
@@ -449,7 +466,6 @@ elif pagina == "🔮  Simulador":
                   delta=f"{resultado.retorno_p90_pct:+.1f}%",
                   help="10% das simulações terminam acima deste valor")
 
-        # 4. VaR destacado
         var_reais = resultado.valor_base - resultado.valor_p10
         var_pct   = abs(resultado.retorno_p10_pct)
         st.markdown(
@@ -463,7 +479,6 @@ elif pagina == "🔮  Simulador":
             unsafe_allow_html=True,
         )
 
-        # 5. Histograma + tabela impacto
         st.divider()
         col_hist, col_tab = st.columns([3, 2])
 
@@ -507,7 +522,6 @@ elif pagina == "🔮  Simulador":
                 height=320,
             )
 
-        # 6. Narrativa IA streaming
         st.divider()
         st.markdown("#### 🤖 Análise do assessor")
         tabela_ativos = carteira.para_dataframe()[
@@ -516,10 +530,10 @@ elif pagina == "🔮  Simulador":
 
         with st.chat_message("assistant"):
             st.write_stream(narrar_resultado_stream(
-                cenario_texto, resumo, resultado, tabela_ativos
+                cenario_texto, resumo, resultado, tabela_ativos,
+                historico_simulacoes=st.session_state.historico_simulacoes,
             ))
 
-        # 7. Export simples
         st.divider()
         resumo_export = (
             f"Cenário: {cenario_texto}\n"
@@ -537,14 +551,12 @@ elif pagina == "🔮  Simulador":
             mime="text/plain",
         )
 
-    # ── Histórico ────────────────────────────────────────────────────────────
     if st.session_state.historico_simulacoes:
         st.divider()
         st.markdown("#### 🕓 Histórico de simulações")
         df_hist = pd.DataFrame(st.session_state.historico_simulacoes)
         df_hist.columns = ["Cenário", "Interpretação", "P10 (%)", "P50 (%)", "P90 (%)", "Choque (%)"]
 
-        # Gráfico comparativo
         fig_hist = go.Figure()
         for col, cor in [("P10 (%)", "#f87171"), ("P50 (%)", "#fbbf24"), ("P90 (%)", "#4ade80")]:
             fig_hist.add_trace(go.Bar(
@@ -578,228 +590,7 @@ elif pagina == "🔮  Simulador":
             st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PÁGINA 3 — ANÁLISE
-# ═══════════════════════════════════════════════════════════════════════════════
-
-elif pagina == "📈  Análise":
-    st.title("Análise")
-
-    if not carteira.ativos:
-        st.warning("Cadastre ativos primeiro.")
-        st.stop()
-
-    df = carteira.para_dataframe()
-    total = carteira.valor_total_atual
-
-    # ── KPIs ─────────────────────────────────────────────────────────────────
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("Patrimônio",    f"R$ {total:,.2f}")
-    k2.metric("P&L",           f"R$ {carteira.pl_total_reais:+,.2f}", delta=f"{carteira.pl_total_pct:+.1f}%")
-    k3.metric("Ativos",        len(carteira.ativos))
-    k4.metric("Classes",       df["Classe"].nunique())
-    maior = df.loc[df["% Carteira"].idxmax()]
-    k5.metric("Maior posição", maior["Ticker"], delta=f"{maior['% Carteira']:.1f}%")
-
-    st.divider()
-
-    # ── Pizza + P&L ───────────────────────────────────────────────────────────
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("**Alocação por classe**")
-        aloc  = carteira.alocacao_por_classe()
-        cores = [CLASSES_CORES.get(k, ACCENT) for k in aloc]
-        fig_pie = go.Figure(go.Pie(
-            labels=[CLASSES.get(k, k) for k in aloc], values=list(aloc.values()),
-            hole=0.5, marker=dict(colors=cores, line=dict(color="#fff", width=2)),
-            textinfo="percent", textfont=dict(size=11),
-            hovertemplate="<b>%{label}</b><br>%{value:.1f}%<extra></extra>",
-        ))
-        fig_pie.add_annotation(
-            text=f"R$ {total:,.0f}", x=0.5, y=0.5,
-            font=dict(size=12, color=TEXT), showarrow=False,
-        )
-        fig_pie.update_layout(**PLOT_LAYOUT)
-        fig_pie.update_layout(
-            showlegend=True,
-            legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
-            margin=dict(t=20, b=20, l=20, r=20),
-        )
-        st.plotly_chart(fig_pie, use_container_width=True)
-
-    with col2:
-        st.markdown("**P&L por ativo**")
-        df_pl    = df.sort_values("P&L (R$)")
-        cores_pl = [NEG if v < 0 else POS for v in df_pl["P&L (R$)"]]
-        fig_pl   = go.Figure(go.Bar(
-            x=df_pl["P&L (R$)"], y=df_pl["Ticker"], orientation="h",
-            marker_color=cores_pl, opacity=0.8,
-            text=df_pl["P&L (R$)"].apply(lambda v: f"R$ {v:+,.0f}"),
-            textposition="outside", textfont=dict(size=10, color=MUTED),
-        ))
-        fig_pl.add_vline(x=0, line_color=BORDER, line_width=1)
-        fig_pl.update_layout(**PLOT_LAYOUT)
-        fig_pl.update_layout(margin=dict(t=20, b=20, l=10, r=80))
-        st.plotly_chart(fig_pl, use_container_width=True)
-
-    st.divider()
-
-    # ── Retorno acumulado vs benchmarks ──────────────────────────────────────
-    st.markdown("**Retorno acumulado — Carteira vs Benchmarks (12 meses)**")
-
-    with st.spinner("Carregando histórico..."):
-        acum_cart  = retorno_acumulado_carteira(carteira)
-        acum_bench = acumulado_benchmarks()
-
-    if acum_cart is not None:
-        fig_acum = go.Figure()
-
-        # Carteira — linha principal
-        fig_acum.add_trace(go.Scatter(
-            x=acum_cart.index, y=acum_cart.values * 100,
-            name="Carteira", mode="lines",
-            line=dict(color="#3b82f6", width=3),
-        ))
-
-        # Benchmarks — cores bem distintas e mais grossas
-        cores_bench = {
-            "Ibovespa": "#f59e0b",   # amarelo
-            "CDI":      "#4ade80",   # verde
-            "IPCA":     "#f87171",   # vermelho
-        }
-        for col in acum_bench.columns:
-            if col in cores_bench:
-                fig_acum.add_trace(go.Scatter(
-                    x=acum_bench.index, y=acum_bench[col].values * 100,
-                    name=col, mode="lines",
-                    line=dict(color=cores_bench[col], width=2, dash="dot"),
-                ))
-
-        fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
-        fig_acum.update_layout(**PLOT_LAYOUT)
-        fig_acum.update_layout(
-            yaxis_title="Retorno acumulado (%)",
-            yaxis_ticksuffix="%",
-            legend=dict(
-                bgcolor="rgba(30,41,59,0.9)",
-                bordercolor=BORDER,
-                borderwidth=1,
-                font=dict(size=12, color=TEXT_PRI),
-            ),
-            margin=dict(t=20, b=40, l=60, r=20),
-            hovermode="x unified",
-        )
-        st.plotly_chart(fig_acum, use_container_width=True)
-
-        # Tabela resumo de retorno acumulado
-        resumo = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
-        for col in acum_bench.columns:
-            s = acum_bench[col].dropna()
-            if len(s):
-                resumo[col] = f"{s.iloc[-1]*100:+.1f}%"
-        st.dataframe(pd.DataFrame([resumo]), use_container_width=True, hide_index=True)
-    else:
-        st.caption("Histórico insuficiente para gerar o gráfico.")
-
-    st.divider()
-
-    # ── Correlação ────────────────────────────────────────────────────────────
-    st.markdown("**Correlação entre ativos (últimos 12 meses)**")
-
-    with st.spinner("Calculando correlações..."):
-        corr = matriz_correlacao(carteira)
-
-    if corr is not None and not corr.empty:
-        fig_corr = go.Figure(go.Heatmap(
-            z=corr.values, x=corr.columns.tolist(), y=corr.index.tolist(),
-            colorscale=[
-                [0.0, "#dc2626"],
-                [0.5, "#ffffff"],
-                [1.0, "#16a34a"],
-            ],
-            zmin=-1, zmax=1,
-            text=corr.round(2).values,
-            texttemplate="%{text}",
-            textfont=dict(size=11, color=TEXT),
-            hovertemplate="<b>%{x} × %{y}</b><br>Correlação: %{z:.2f}<extra></extra>",
-            showscale=True,
-            colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=10)),
-        ))
-        fig_corr.update_layout(**PLOT_LAYOUT)
-        fig_corr.update_layout(
-            xaxis=dict(side="bottom", tickfont=dict(size=11)),
-            yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
-            margin=dict(t=20, b=60, l=80, r=20),
-        )
-        st.plotly_chart(fig_corr, use_container_width=True)
-        st.caption("Verde = correlação positiva · Vermelho = correlação negativa · Branco = sem correlação")
-    else:
-        st.caption("São necessários pelo menos 2 ativos com histórico disponível.")
-
-    st.divider()
-
-    # ── Peso + concentração ───────────────────────────────────────────────────
-    col3, col4 = st.columns(2)
-
-    with col3:
-        st.markdown("**Peso por ativo**")
-        df_peso = df.sort_values("% Carteira", ascending=True)
-        fig_peso = go.Figure(go.Bar(
-            x=df_peso["% Carteira"], y=df_peso["Ticker"], orientation="h",
-            marker_color=ACCENT, opacity=0.7,
-            text=df_peso["% Carteira"].apply(lambda v: f"{v:.1f}%"),
-            textposition="outside", textfont=dict(size=10, color=MUTED),
-        ))
-        fig_peso.update_layout(**PLOT_LAYOUT)
-        fig_peso.update_layout(
-            xaxis=dict(gridcolor=BORDER, zeroline=False, ticksuffix="%"),
-            margin=dict(t=20, b=20, l=10, r=60),
-        )
-        st.plotly_chart(fig_peso, use_container_width=True)
-
-    with col4:
-        st.markdown("**Concentração**")
-        alertas = [(r["Ticker"], r["% Carteira"]) for _, r in df.iterrows() if r["% Carteira"] > 20]
-        if alertas:
-            for ticker, pct in alertas:
-                if pct > 30: st.error(f"**{ticker}** representa {pct:.1f}% — alta concentração")
-                else:        st.warning(f"**{ticker}** representa {pct:.1f}%")
-        else:
-            st.success("Nenhum ativo com concentração acima de 20%.")
-
-        pesos   = df["% Carteira"].values / 100
-        hhi     = np.sum(pesos ** 2)
-        n_equiv = 1 / hhi if hhi > 0 else 1
-        score   = min(100, int(n_equiv / len(df) * 100 + (1 - hhi) * 60))
-        st.metric("Score de diversificação", f"{score} / 100",
-                  delta="Bom" if score > 60 else "A melhorar",
-                  delta_color="normal" if score > 60 else "inverse")
-
-        st.markdown("**Por classe**")
-        for classe, pct in sorted(carteira.alocacao_por_classe().items(), key=lambda x: -x[1]):
-            st.markdown(
-                f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
-                f'border-bottom:1px solid {BORDER}">'
-                f'<span style="color:{MUTED};font-size:0.85rem">{CLASSES.get(classe,classe)}</span>'
-                f'<span style="color:{ACCENT};font-size:0.85rem;font-weight:600">{pct:.1f}%</span>'
-                f'</div>', unsafe_allow_html=True)
-
-    st.divider()
-    st.markdown("**Visão detalhada**")
-    st.dataframe(
-        df.style.format({
-            "Preço Médio":    "R$ {:.2f}",
-            "Investido (R$)": "R$ {:,.2f}",
-            "Atual (R$)":     "R$ {:,.2f}",
-            "P&L (R$)":       "R$ {:+,.2f}",
-            "P&L (%)":        "{:+.2f}%",
-            "% Carteira":     "{:.1f}%",
-        }).background_gradient(subset=["P&L (%)"], cmap="RdYlGn", vmin=-20, vmax=20),
-        use_container_width=True, hide_index=True,
-    )
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# PÁGINA 4 — STRESS TEST
+# PÁGINA 3 — STRESS TEST
 # ═══════════════════════════════════════════════════════════════════════════════
 
 elif pagina == "💥  Stress Test":
@@ -825,8 +616,6 @@ elif pagina == "💥  Stress Test":
         df_res, resultados = rodar_todos(carteira)
         prog_st.progress(100, text="✅ Concluído!")
         prog_st.empty()
-
-        valor_base = carteira.valor_total_atual
 
         st.markdown("#### Resultados comparativos")
         st.dataframe(
@@ -909,3 +698,313 @@ elif pagina == "💥  Stress Test":
                 f"(R$ {row['P50 (R$)']:,.2f})\n\n"
                 f"Otimista: **{row['P90 (%)']:+.1f}%**"
             )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA 4 — ANÁLISE
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif pagina == "📈  Análise":
+    st.title("Análise")
+
+    if not carteira.ativos:
+        st.warning("Cadastre ativos primeiro.")
+        st.stop()
+
+    df = carteira.para_dataframe()
+    total = carteira.valor_total_atual
+
+    k1, k2, k3, k4, k5 = st.columns(5)
+    k1.metric("Patrimônio",    f"R$ {total:,.2f}")
+    k2.metric("P&L",           f"R$ {carteira.pl_total_reais:+,.2f}", delta=f"{carteira.pl_total_pct:+.1f}%")
+    k3.metric("Ativos",        len(carteira.ativos))
+    k4.metric("Classes",       df["Classe"].nunique())
+    maior = df.loc[df["% Carteira"].idxmax()]
+    k5.metric("Maior posição", maior["Ticker"], delta=f"{maior['% Carteira']:.1f}%")
+
+    st.divider()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("**Alocação por classe**")
+        aloc  = carteira.alocacao_por_classe()
+        cores = [CLASSES_CORES.get(k, ACCENT) for k in aloc]
+        fig_pie = go.Figure(go.Pie(
+            labels=[CLASSES.get(k, k) for k in aloc], values=list(aloc.values()),
+            hole=0.5, marker=dict(colors=cores, line=dict(color="#fff", width=2)),
+            textinfo="percent", textfont=dict(size=11),
+            hovertemplate="<b>%{label}</b><br>%{value:.1f}%<extra></extra>",
+        ))
+        fig_pie.add_annotation(
+            text=f"R$ {total:,.0f}", x=0.5, y=0.5,
+            font=dict(size=12, color=TEXT), showarrow=False,
+        )
+        fig_pie.update_layout(**PLOT_LAYOUT)
+        fig_pie.update_layout(
+            showlegend=True,
+            legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
+            margin=dict(t=20, b=20, l=20, r=20),
+        )
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col2:
+        st.markdown("**P&L por ativo**")
+        df_pl    = df.sort_values("P&L (R$)")
+        cores_pl = [NEG if v < 0 else POS for v in df_pl["P&L (R$)"]]
+        fig_pl   = go.Figure(go.Bar(
+            x=df_pl["P&L (R$)"], y=df_pl["Ticker"], orientation="h",
+            marker_color=cores_pl, opacity=0.8,
+            text=df_pl["P&L (R$)"].apply(lambda v: f"R$ {v:+,.0f}"),
+            textposition="outside", textfont=dict(size=10, color=MUTED),
+        ))
+        fig_pl.add_vline(x=0, line_color=BORDER, line_width=1)
+        fig_pl.update_layout(**PLOT_LAYOUT)
+        fig_pl.update_layout(margin=dict(t=20, b=20, l=10, r=80))
+        st.plotly_chart(fig_pl, use_container_width=True)
+
+    st.divider()
+
+    st.markdown("**Retorno acumulado — Carteira vs Benchmarks (12 meses)**")
+
+    with st.spinner("Carregando histórico..."):
+        acum_cart  = retorno_acumulado_carteira(carteira)
+        acum_bench = acumulado_benchmarks()
+
+    # Salva benchmarks no cache para o Assessor IA usar
+    if acum_bench is not None and not acum_bench.empty:
+        st.session_state.benchmarks_cache = {
+            col: float(acum_bench[col].dropna().iloc[-1]) * 100
+            for col in acum_bench.columns
+            if not acum_bench[col].dropna().empty
+        }
+
+    if acum_cart is not None:
+        fig_acum = go.Figure()
+        fig_acum.add_trace(go.Scatter(
+            x=acum_cart.index, y=acum_cart.values * 100,
+            name="Carteira", mode="lines",
+            line=dict(color="#3b82f6", width=3),
+        ))
+        cores_bench = {
+            "Ibovespa": "#f59e0b",
+            "CDI":      "#4ade80",
+            "IPCA":     "#f87171",
+        }
+        for col in acum_bench.columns:
+            if col in cores_bench:
+                fig_acum.add_trace(go.Scatter(
+                    x=acum_bench.index, y=acum_bench[col].values * 100,
+                    name=col, mode="lines",
+                    line=dict(color=cores_bench[col], width=2, dash="dot"),
+                ))
+        fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
+        fig_acum.update_layout(**PLOT_LAYOUT)
+        fig_acum.update_layout(
+            yaxis_title="Retorno acumulado (%)",
+            yaxis_ticksuffix="%",
+            legend=dict(
+                bgcolor="rgba(30,41,59,0.9)",
+                bordercolor=BORDER,
+                borderwidth=1,
+                font=dict(size=12, color=TEXT_PRI),
+            ),
+            margin=dict(t=20, b=40, l=60, r=20),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_acum, use_container_width=True)
+
+        resumo_bench = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
+        for col in acum_bench.columns:
+            s = acum_bench[col].dropna()
+            if len(s):
+                resumo_bench[col] = f"{s.iloc[-1]*100:+.1f}%"
+        st.dataframe(pd.DataFrame([resumo_bench]), use_container_width=True, hide_index=True)
+    else:
+        st.caption("Histórico insuficiente para gerar o gráfico.")
+
+    st.divider()
+
+    st.markdown("**Correlação entre ativos (últimos 12 meses)**")
+
+    with st.spinner("Calculando correlações..."):
+        corr = matriz_correlacao(carteira)
+
+    if corr is not None and not corr.empty:
+        fig_corr = go.Figure(go.Heatmap(
+            z=corr.values, x=corr.columns.tolist(), y=corr.index.tolist(),
+            colorscale=[
+                [0.0, "#dc2626"],
+                [0.5, "#ffffff"],
+                [1.0, "#16a34a"],
+            ],
+            zmin=-1, zmax=1,
+            text=corr.round(2).values,
+            texttemplate="%{text}",
+            textfont=dict(size=11, color=TEXT),
+            hovertemplate="<b>%{x} × %{y}</b><br>Correlação: %{z:.2f}<extra></extra>",
+            showscale=True,
+            colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=10)),
+        ))
+        fig_corr.update_layout(**PLOT_LAYOUT)
+        fig_corr.update_layout(
+            xaxis=dict(side="bottom", tickfont=dict(size=11)),
+            yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
+            margin=dict(t=20, b=60, l=80, r=20),
+        )
+        st.plotly_chart(fig_corr, use_container_width=True)
+        st.caption("Verde = correlação positiva · Vermelho = correlação negativa · Branco = sem correlação")
+    else:
+        st.caption("São necessários pelo menos 2 ativos com histórico disponível.")
+
+    st.divider()
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.markdown("**Peso por ativo**")
+        df_peso = df.sort_values("% Carteira", ascending=True)
+        fig_peso = go.Figure(go.Bar(
+            x=df_peso["% Carteira"], y=df_peso["Ticker"], orientation="h",
+            marker_color=ACCENT, opacity=0.7,
+            text=df_peso["% Carteira"].apply(lambda v: f"{v:.1f}%"),
+            textposition="outside", textfont=dict(size=10, color=MUTED),
+        ))
+        fig_peso.update_layout(**PLOT_LAYOUT)
+        fig_peso.update_layout(
+            xaxis=dict(gridcolor=BORDER, zeroline=False, ticksuffix="%"),
+            margin=dict(t=20, b=20, l=10, r=60),
+        )
+        st.plotly_chart(fig_peso, use_container_width=True)
+
+    with col4:
+        st.markdown("**Concentração**")
+        alertas = [(r["Ticker"], r["% Carteira"]) for _, r in df.iterrows() if r["% Carteira"] > 20]
+        if alertas:
+            for ticker, pct in alertas:
+                if pct > 30: st.error(f"**{ticker}** representa {pct:.1f}% — alta concentração")
+                else:        st.warning(f"**{ticker}** representa {pct:.1f}%")
+        else:
+            st.success("Nenhum ativo com concentração acima de 20%.")
+
+        pesos   = df["% Carteira"].values / 100
+        hhi     = np.sum(pesos ** 2)
+        n_equiv = 1 / hhi if hhi > 0 else 1
+        score   = min(100, int(n_equiv / len(df) * 100 + (1 - hhi) * 60))
+        st.metric("Score de diversificação", f"{score} / 100",
+                  delta="Bom" if score > 60 else "A melhorar",
+                  delta_color="normal" if score > 60 else "inverse")
+
+        st.markdown("**Por classe**")
+        for classe, pct in sorted(carteira.alocacao_por_classe().items(), key=lambda x: -x[1]):
+            st.markdown(
+                f'<div style="display:flex;justify-content:space-between;padding:5px 0;'
+                f'border-bottom:1px solid {BORDER}">'
+                f'<span style="color:{MUTED};font-size:0.85rem">{CLASSES.get(classe,classe)}</span>'
+                f'<span style="color:{ACCENT};font-size:0.85rem;font-weight:600">{pct:.1f}%</span>'
+                f'</div>', unsafe_allow_html=True)
+
+    st.divider()
+    st.markdown("**Visão detalhada**")
+    st.dataframe(
+        df.style.format({
+            "Preço Médio":    "R$ {:.2f}",
+            "Investido (R$)": "R$ {:,.2f}",
+            "Atual (R$)":     "R$ {:,.2f}",
+            "P&L (R$)":       "R$ {:+,.2f}",
+            "P&L (%)":        "{:+.2f}%",
+            "% Carteira":     "{:.1f}%",
+        }).background_gradient(subset=["P&L (%)"], cmap="RdYlGn", vmin=-20, vmax=20),
+        use_container_width=True, hide_index=True,
+    )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PÁGINA 5 — ASSESSOR IA
+# ═══════════════════════════════════════════════════════════════════════════════
+
+elif pagina == "💬  Assessor IA":
+    st.title("Assessor IA")
+    st.caption("Chat com contexto completo da sua carteira e histórico de simulações")
+
+    if not carteira.ativos:
+        st.warning("Cadastre ativos na página Carteira para o assessor ter contexto.")
+
+    with st.expander("📋 Contexto carregado pelo assessor", expanded=False):
+        col_ctx1, col_ctx2 = st.columns(2)
+        with col_ctx1:
+            st.caption(f"**Ativos na carteira:** {len(carteira.ativos)}")
+            st.caption(f"**Valor total:** R$ {carteira.valor_total_atual:,.2f}")
+            st.caption(f"**P&L total:** {carteira.pl_total_pct:+.1f}%")
+        with col_ctx2:
+            n_sims = len(st.session_state.historico_simulacoes)
+            st.caption(f"**Simulações na memória:** {n_sims}")
+            if n_sims:
+                ultimas = [s['cenario'] for s in st.session_state.historico_simulacoes[-3:]]
+                st.caption("Últimas: " + " · ".join(f'"{c[:25]}"' for c in ultimas))
+
+    st.divider()
+
+    col_proativo, col_limpar = st.columns([3, 1])
+    with col_proativo:
+        if st.button("🔍 Analisar rebalanceamento da carteira", type="primary", use_container_width=True):
+            if carteira.ativos:
+                with st.chat_message("assistant"):
+                    resposta = st.write_stream(sugerir_rebalanceamento_stream(
+                        carteira,
+                        st.session_state.historico_simulacoes,
+                        st.session_state.benchmarks_cache,
+                    ))
+                st.session_state.historico_chat.append({"role": "user", "content": "[Análise de rebalanceamento solicitada]"})
+                st.session_state.historico_chat.append({"role": "assistant", "content": resposta})
+            else:
+                st.warning("Cadastre ativos primeiro.")
+    with col_limpar:
+        if st.button("🗑️ Limpar chat", use_container_width=True):
+            st.session_state.historico_chat = []
+            st.rerun()
+
+    st.divider()
+
+    for msg in st.session_state.historico_chat:
+        if msg["content"] == "[Análise de rebalanceamento solicitada]":
+            continue
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    SUGESTOES = [
+        "Qual meu ativo mais arriscado?",
+        "Como estou vs Ibovespa?",
+        "Resuma os cenários simulados",
+        "Onde estou concentrado demais?",
+        "Me explica o VaR da última simulação",
+    ]
+
+    if not st.session_state.historico_chat:
+        st.markdown("**Sugestões para começar:**")
+        cols_sug = st.columns(len(SUGESTOES))
+        for i, sug in enumerate(SUGESTOES):
+            if cols_sug[i].button(sug, use_container_width=True, key=f"sug_{i}"):
+                st.session_state._msg_rapida = sug
+                st.rerun()
+
+    pergunta = st.chat_input("Pergunte sobre sua carteira, simulações ou estratégia...")
+
+    if hasattr(st.session_state, "_msg_rapida") and st.session_state._msg_rapida:
+        pergunta = st.session_state._msg_rapida
+        st.session_state._msg_rapida = None
+
+    if pergunta:
+        with st.chat_message("user"):
+            st.markdown(pergunta)
+        st.session_state.historico_chat.append({"role": "user", "content": pergunta})
+
+        with st.chat_message("assistant"):
+            resposta = st.write_stream(chat_stream(
+                mensagem=pergunta,
+                historico_chat=st.session_state.historico_chat[:-1],
+                carteira=carteira,
+                historico_simulacoes=st.session_state.historico_simulacoes,
+                benchmarks=st.session_state.benchmarks_cache,
+            ))
+
+        st.session_state.historico_chat.append({"role": "assistant", "content": resposta})
+        st.rerun()
