@@ -51,31 +51,30 @@ section[data-testid="stSidebar"] {{ background: {BG} !important; border-right: 1
 header[data-testid="stHeader"], [data-testid="stToolbar"] {{ background: {BG} !important; }}
 header {{ background-color: {BG} !important; }}
 
-/* Chat input */
 /* Chat input — seletores atualizados */
-div[data-testid="stChatInput"] {
+div[data-testid="stChatInput"] {{
     background: #1e293b !important;
     border: 1px solid #334155 !important;
     border-radius: 12px !important;
-}
-div[data-testid="stChatInput"] > div {
+}}
+div[data-testid="stChatInput"] > div {{
     background: #1e293b !important;
     border-radius: 12px !important;
-}
-div[data-testid="stChatInput"] textarea {
+}}
+div[data-testid="stChatInput"] textarea {{
     background: #1e293b !important;
     color: #e2e8f0 !important;
-}
-div[data-testid="stChatInput"]:focus-within {
+}}
+div[data-testid="stChatInput"]:focus-within {{
     border-color: #475569 !important;
     box-shadow: none !important;
-}
+}}
 
 /* Container fixo no fundo */
-[data-testid="stBottom"] > div {
+[data-testid="stBottom"] > div {{
     background: #0f172a !important;
     border-top: 1px solid #334155 !important;
-}
+}}
 
 p, span, li {{ color: {TEXT_SEC}; }}
 strong {{ color: {TEXT_PRI} !important; }}
