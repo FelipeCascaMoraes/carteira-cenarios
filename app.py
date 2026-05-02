@@ -9,6 +9,7 @@ from simulator import simular_carteira, impacto_por_ativo
 from agent import extrair_choque
 from agent_chat import narrar_resultado_stream, chat_stream, sugerir_rebalanceamento_stream
 from stress_test import CENARIOS_HISTORICOS, rodar_todos
+from risk_metricks import calcular_metricas, interpretar_sharpe, interpretar_drawdown
 from analytics import (
     retorno_acumulado_carteira,
     acumulado_benchmarks,
@@ -865,6 +866,122 @@ elif pagina == "📈  Análise":
         st.caption("São necessários pelo menos 2 ativos com histórico disponível.")
 
     st.divider()
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCO DE RISCO — cole no app.py na página Análise,
+# após o gráfico de correlação e antes de "Peso por ativo"
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 1. Adicione este import no topo do app.py (junto com os outros imports):
+# from risk_metrics import calcular_metricas, interpretar_sharpe, interpretar_drawdown
+
+# 2. Cole o bloco abaixo no lugar certo da página Análise:
+
+    st.divider()
+    st.markdown("**Métricas de Risco (12 meses)**")
+
+    with st.spinner("Calculando métricas de risco..."):
+        metricas = calcular_metricas(carteira)
+
+    if metricas:
+        # ── KPIs de risco ─────────────────────────────────────────────────────
+        r1, r2, r3, r4, r5 = st.columns(5)
+
+        sharpe_label, sharpe_cor = interpretar_sharpe(metricas["sharpe"])
+        dd_label, dd_cor         = interpretar_drawdown(metricas["max_drawdown"])
+
+        r1.metric(
+            "Volatilidade anual",
+            f"{metricas['vol_anual']*100:.1f}%",
+            help="Desvio padrão anualizado dos retornos diários"
+        )
+        r2.metric(
+            "Sharpe Ratio",
+            f"{metricas['sharpe']:.2f}",
+            delta=sharpe_label,
+            delta_color="normal" if metricas["sharpe"] >= 0.5 else "inverse",
+            help="Retorno ajustado ao risco vs CDI. Acima de 1 = bom, acima de 2 = excelente"
+        )
+        r3.metric(
+            "Sortino Ratio",
+            f"{metricas['sortino']:.2f}",
+            help="Igual ao Sharpe mas penaliza só a volatilidade negativa"
+        )
+        r4.metric(
+            "Max Drawdown",
+            f"{metricas['max_drawdown']*100:.1f}%",
+            delta=dd_label,
+            delta_color="inverse" if abs(metricas["max_drawdown"]) > 0.10 else "normal",
+            help=f"Maior queda do pico até o vale. Ocorreu em {metricas['max_dd_date'].strftime('%d/%m/%Y')}"
+        )
+        r5.metric(
+            "Beta (vs Ibov)",
+            f"{metricas['beta']:.2f}" if metricas["beta"] is not None else "—",
+            help="Beta > 1 = mais volátil que o Ibovespa. Beta < 1 = mais defensivo"
+        )
+
+        st.divider()
+
+        # ── Gráfico de Drawdown ───────────────────────────────────────────────
+        st.markdown("**Drawdown histórico**")
+        fig_dd = go.Figure()
+        fig_dd.add_trace(go.Scatter(
+            x=metricas["serie_drawdown"].index,
+            y=metricas["serie_drawdown"].values * 100,
+            mode="lines",
+            fill="tozeroy",
+            fillcolor="rgba(248, 113, 113, 0.15)",
+            line=dict(color="#f87171", width=1.5),
+            name="Drawdown",
+            hovertemplate="%{x|%d/%m/%Y}<br>%{y:.2f}%<extra></extra>",
+        ))
+        fig_dd.add_hline(
+            y=metricas["max_drawdown"] * 100,
+            line_color="#f87171", line_dash="dash", line_width=1,
+            annotation_text=f"Máx: {metricas['max_drawdown']*100:.1f}%",
+            annotation_font_color="#f87171",
+        )
+        fig_dd.update_layout(**plotly_layout())
+        fig_dd.update_layout(
+            yaxis_title="Drawdown (%)",
+            yaxis_ticksuffix="%",
+            showlegend=False,
+            margin=dict(t=20, b=40, l=60, r=20),
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig_dd, use_container_width=True)
+
+        # ── Interpretação textual ─────────────────────────────────────────────
+        col_int1, col_int2 = st.columns(2)
+        with col_int1:
+            sharpe_label, _ = interpretar_sharpe(metricas["sharpe"])
+            st.markdown(
+                f'<div style="background:{SURFACE};border:1px solid {BORDER};'
+                f'border-radius:10px;padding:1rem">'
+                f'<p style="color:{MUTED};font-size:0.72rem;text-transform:uppercase;'
+                f'letter-spacing:0.08em;margin:0 0 8px">Sharpe · {sharpe_label}</p>'
+                f'<p style="color:{TEXT_SEC};font-size:0.85rem;margin:0">'
+                f'Para cada unidade de risco assumida, a carteira gerou '
+                f'<strong>{metricas["sharpe"]:.2f}x</strong> de retorno acima do CDI.'
+                f'{"" if metricas["sharpe"] >= 1 else " Considere reduzir ativos de alta volatilidade."}'
+                f'</p></div>',
+                unsafe_allow_html=True
+            )
+        with col_int2:
+            dd_label, _ = interpretar_drawdown(metricas["max_drawdown"])
+            st.markdown(
+                f'<div style="background:{SURFACE};border:1px solid {BORDER};'
+                f'border-radius:10px;padding:1rem">'
+                f'<p style="color:{MUTED};font-size:0.72rem;text-transform:uppercase;'
+                f'letter-spacing:0.08em;margin:0 0 8px">Max Drawdown · {dd_label}</p>'
+                f'<p style="color:{TEXT_SEC};font-size:0.85rem;margin:0">'
+                f'A maior queda da carteira foi de '
+                f'<strong>{metricas["max_drawdown"]*100:.1f}%</strong>, '
+                f'ocorrida em {metricas["max_dd_date"].strftime("%d/%m/%Y")}.'
+                f'</p></div>',
+                unsafe_allow_html=True
+            )
+    else:
+        st.caption("Histórico insuficiente para calcular métricas de risco.")
 
     col3, col4 = st.columns(2)
 
