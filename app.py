@@ -654,25 +654,25 @@ elif pagina == "📈  Análise":
     if acum_cart is not None:
         fig_acum = go.Figure()
 
-        # Carteira
+        # Carteira — linha principal
         fig_acum.add_trace(go.Scatter(
             x=acum_cart.index, y=acum_cart.values * 100,
             name="Carteira", mode="lines",
-            line=dict(color="#3b82f6", width=2.5),
+            line=dict(color="#3b82f6", width=3),
         ))
 
-        # Benchmarks
+        # Benchmarks — cores bem distintas e mais grossas
         cores_bench = {
-            "Ibovespa": "#f59e0b",
-            "CDI":      "#16a34a",
-            "IPCA":     "#dc2626",
+            "Ibovespa": "#f59e0b",   # amarelo
+            "CDI":      "#4ade80",   # verde
+            "IPCA":     "#f87171",   # vermelho
         }
         for col in acum_bench.columns:
             if col in cores_bench:
                 fig_acum.add_trace(go.Scatter(
                     x=acum_bench.index, y=acum_bench[col].values * 100,
                     name=col, mode="lines",
-                    line=dict(color=cores_bench[col], width=1.5, dash="dash"),
+                    line=dict(color=cores_bench[col], width=2, dash="dot"),
                 ))
 
         fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
@@ -680,7 +680,12 @@ elif pagina == "📈  Análise":
         fig_acum.update_layout(
             yaxis_title="Retorno acumulado (%)",
             yaxis_ticksuffix="%",
-            legend=dict(bgcolor="rgba(0,0,0,0)", font=dict(size=11, color=TEXT_SEC)),
+            legend=dict(
+                bgcolor="rgba(30,41,59,0.9)",
+                bordercolor=BORDER,
+                borderwidth=1,
+                font=dict(size=12, color=TEXT_PRI),
+            ),
             margin=dict(t=20, b=40, l=60, r=20),
             hovermode="x unified",
         )
