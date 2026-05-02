@@ -777,40 +777,49 @@ elif pagina == "📈  Análise":
             if not acum_bench[col].dropna().empty
         }
 
-    if acum_cart is not None:
-        fig_acum = go.Figure()
-        fig_acum.add_trace(go.Scatter(
-            x=acum_cart.index, y=acum_cart.values * 100,
-            name="Carteira", mode="lines",
-            line=dict(color="#3b82f6", width=3),
-        ))
-        cores_bench = {
-            "Ibovespa": "#f59e0b",
-            "CDI":      "#4ade80",
-            "IPCA":     "#f87171",
-        }
-        for col in acum_bench.columns:
-            if col in cores_bench:
-                fig_acum.add_trace(go.Scatter(
-                    x=acum_bench.index, y=acum_bench[col].values * 100,
-                    name=col, mode="lines",
-                    line=dict(color=cores_bench[col], width=2, dash="dot"),
-                ))
-        fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
-        fig_acum.update_layout(**PLOT_LAYOUT)
-        fig_acum.update_layout(
-            yaxis_title="Retorno acumulado (%)",
-            yaxis_ticksuffix="%",
-            legend=dict(
-                bgcolor="rgba(30,41,59,0.9)",
-                bordercolor=BORDER,
-                borderwidth=1,
-                font=dict(size=12, color=TEXT_PRI),
-            ),
-            margin=dict(t=20, b=40, l=60, r=20),
-            hovermode="x unified",
-        )
-        st.plotly_chart(fig_acum, use_container_width=True)
+        if acum_cart is not None:
+            fig_acum = go.Figure()
+
+            idx = acum_cart.index
+            acum_bench_aligned = acum_bench.reindex(idx, method="ffill").bfill()
+
+            cores_bench = {
+                "Ibovespa": "#f59e0b",
+                "CDI":      "#4ade80",
+                "IPCA":     "#f87171",
+            }
+            for col in acum_bench_aligned.columns:
+                if col in cores_bench:
+                    serie = acum_bench_aligned[col].dropna()
+                    if len(serie) > 1:
+                        fig_acum.add_trace(go.Scatter(
+                            x=serie.index, y=serie.values * 100,
+                            name=col, mode="lines",
+                            line=dict(color=cores_bench[col], width=2),
+                        ))
+
+            # Carteira — fora do for, indentação no mesmo nível
+            fig_acum.add_trace(go.Scatter(
+                x=acum_cart.index, y=acum_cart.values * 100,
+                name="Carteira", mode="lines",
+                line=dict(color="#3b82f6", width=3),
+            ))
+
+            fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
+            fig_acum.update_layout(**PLOT_LAYOUT)
+            fig_acum.update_layout(
+                yaxis_title="Retorno acumulado (%)",
+                yaxis_ticksuffix="%",
+                legend=dict(
+                    bgcolor="rgba(30,41,59,0.9)",
+                    bordercolor=BORDER,
+                    borderwidth=1,
+                    font=dict(size=12, color=TEXT_PRI),
+                ),
+                margin=dict(t=20, b=40, l=60, r=20),
+                hovermode="x unified",
+            )
+            st.plotly_chart(fig_acum, use_container_width=True)
 
         resumo_bench = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
         for col in acum_bench.columns:
