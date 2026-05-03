@@ -22,3 +22,5 @@ python-dotenv>=1.0.0
 #IA
 agno>=1.0.0
 groq>=0.9.0
+#Banco de Dados
+supabase

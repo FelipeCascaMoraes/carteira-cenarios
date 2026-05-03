@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 from portfolio import Carteira, Ativo, CLASSES, CLASSES_CORES
 from market_data import get_batch_prices, TESOURO_TITULOS
 from simulator import simular_carteira, impacto_por_ativo
@@ -11,6 +10,7 @@ from agent_chat import narrar_resultado_stream, chat_stream, sugerir_rebalanceam
 from stress_test import CENARIOS_HISTORICOS, rodar_todos
 from risk_metrics import calcular_metricas, interpretar_sharpe, interpretar_drawdown
 from analytics import retorno_acumulado_carteira, acumulado_benchmarks, matriz_correlacao
+from database import carregar_carteira, salvar_ativo, remover_ativo, salvar_carteira, limpar_carteira
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -123,7 +123,7 @@ def badge_retorno(pct):
 # ─── Estado ──────────────────────────────────────────────────────────────────
 
 if "carteira" not in st.session_state:
-    st.session_state.carteira = Carteira.carregar_json()
+    st.session_state.carteira = carregar_carteira()
 if "historico_simulacoes" not in st.session_state:
     st.session_state.historico_simulacoes = []
 if "historico_chat" not in st.session_state:
@@ -172,7 +172,7 @@ if pagina == "🏠  Carteira":
             if tipo == "Tesouro Direto":
                 opcoes_tesouro = list(TESOURO_TITULOS.keys())
                 ticker = st.selectbox("Título", opcoes_tesouro, format_func=lambda x: f"{x} — {TESOURO_TITULOS[x]}")
-                nome = TESOURO_TITULOS[ticker]
+                nome   = TESOURO_TITULOS[ticker]
                 classe = "tesouro"
                 st.info("Classe: Tesouro Direto")
             else:
@@ -182,8 +182,8 @@ if pagina == "🏠  Carteira":
         with c2:
             if tipo == "Tesouro Direto":
                 valor_investido = st.number_input("Valor investido (R$)", min_value=0.0, step=100.0, value=1000.0)
-                preco_medio = st.number_input("Preço unitário (PU) na compra", min_value=0.0, step=0.01, value=0.0)
-                quantidade = valor_investido / preco_medio if preco_medio > 0 else 1.0
+                preco_medio     = st.number_input("Preço unitário (PU) na compra", min_value=0.0, step=0.01, value=0.0)
+                quantidade      = valor_investido / preco_medio if preco_medio > 0 else 1.0
                 st.caption("💡 PU = preço do título na data da compra. Deixe 0 para buscar automaticamente.")
             else:
                 quantidade  = st.number_input("Quantidade", min_value=0.0, step=1.0, value=1.0)
@@ -198,10 +198,10 @@ if pagina == "🏠  Carteira":
                 if preco_medio > 0:
                     if tipo == "Tesouro Direto":
                         quantidade = valor_investido / preco_medio
-                    carteira.adicionar(Ativo(ticker=ticker, nome=nome or ticker,
-                                            classe=classe, quantidade=quantidade,
-                                            preco_medio=preco_medio))
-                    carteira.salvar_json()
+                    novo = Ativo(ticker=ticker, nome=nome or ticker, classe=classe,
+                                 quantidade=quantidade, preco_medio=preco_medio)
+                    carteira.adicionar(novo)
+                    salvar_ativo(novo)
                     st.success(f"✅ {ticker} adicionado!")
                     st.rerun()
                 else:
@@ -222,7 +222,7 @@ if pagina == "🏠  Carteira":
                 for t, p in precos.items():
                     if p: carteira.atualizar_preco(t, p)
                     else: nao_encontrados.append(t)
-                carteira.salvar_json()
+                salvar_carteira(carteira)
             if nao_encontrados: st.warning(f"Não encontrados: {', '.join(nao_encontrados)}")
             else: st.success("Preços atualizados!")
             st.rerun()
@@ -231,12 +231,12 @@ if pagina == "🏠  Carteira":
             ticker_rem = st.selectbox("Ativo", [a.ticker for a in carteira.ativos], label_visibility="collapsed")
             if st.button("Remover", type="secondary", use_container_width=True):
                 carteira.remover(ticker_rem)
-                carteira.salvar_json()
+                remover_ativo(ticker_rem)
                 st.rerun()
     with col_c:
         if st.button("🧹  Limpar tudo", use_container_width=True):
             st.session_state.carteira = Carteira()
-            Carteira().salvar_json()
+            limpar_carteira()
             st.rerun()
 
     st.divider()
@@ -579,9 +579,7 @@ elif pagina == "📈  Análise":
 
     st.divider()
 
-    # ── Pizza + P&L ───────────────────────────────────────────────────────────
     col1, col2 = st.columns(2)
-
     with col1:
         st.markdown("**Alocação por classe**")
         aloc  = carteira.alocacao_por_classe()
@@ -615,10 +613,9 @@ elif pagina == "📈  Análise":
         fig_pl.update_layout(margin=dict(t=20, b=20, l=10, r=80))
         st.plotly_chart(fig_pl, use_container_width=True, key="pl_analise")
 
-    # ── Volatilidade por ativo ────────────────────────────────────────────────
+    # ── Volatilidade ──────────────────────────────────────────────────────────
     st.divider()
     st.markdown("**Volatilidade anualizada por ativo**")
-
     with st.spinner("Calculando volatilidades..."):
         from market_data import get_historical_returns, is_tesouro
         vols = []
@@ -633,13 +630,11 @@ elif pagina == "📈  Análise":
 
     if vols:
         df_vol = pd.DataFrame(vols).sort_values("Volatilidade (%)", ascending=True)
-
         def cor_vol(v):
             if v < 15:  return "#4ade80"
             if v < 30:  return "#fbbf24"
             if v < 50:  return "#fb923c"
             return "#f87171"
-
         fig_vol = go.Figure(go.Bar(
             x=df_vol["Volatilidade (%)"], y=df_vol["Ticker"], orientation="h",
             marker_color=[cor_vol(v) for v in df_vol["Volatilidade (%)"]],
@@ -661,15 +656,13 @@ elif pagina == "📈  Análise":
             f'<span style="color:#fbbf24">■</span> Moderado (15–30%)&nbsp;&nbsp;'
             f'<span style="color:#fb923c">■</span> Alto (30–50%)&nbsp;&nbsp;'
             f'<span style="color:#f87171">■</span> Muito alto (&gt;50%)',
-            unsafe_allow_html=True,
-        )
+            unsafe_allow_html=True)
     else:
         st.caption("Histórico insuficiente para calcular volatilidades.")
 
     # ── Retorno acumulado vs benchmarks ──────────────────────────────────────
     st.divider()
     st.markdown("**Retorno acumulado — Carteira vs Benchmarks (12 meses)**")
-
     with st.spinner("Carregando histórico..."):
         acum_cart  = retorno_acumulado_carteira(carteira)
         acum_bench = acumulado_benchmarks()
@@ -684,7 +677,6 @@ elif pagina == "📈  Análise":
         fig_acum = go.Figure()
         idx = acum_cart.index
         acum_bench_aligned = acum_bench.reindex(idx, method="ffill").bfill()
-
         cores_bench = {"Ibovespa": "#f59e0b", "CDI": "#4ade80", "IPCA": "#f87171"}
         for col in acum_bench_aligned.columns:
             if col in cores_bench:
@@ -694,7 +686,6 @@ elif pagina == "📈  Análise":
                         x=serie.index, y=serie.values * 100, name=col, mode="lines",
                         line=dict(color=cores_bench[col], width=2),
                     ))
-
         fig_acum.add_trace(go.Scatter(
             x=acum_cart.index, y=acum_cart.values * 100,
             name="Carteira", mode="lines", line=dict(color="#3b82f6", width=3),
@@ -708,7 +699,6 @@ elif pagina == "📈  Análise":
             margin=dict(t=20, b=40, l=60, r=20), hovermode="x unified",
         )
         st.plotly_chart(fig_acum, use_container_width=True, key="acum_analise")
-
         resumo_bench = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
         for col in acum_bench.columns:
             s = acum_bench[col].dropna()
@@ -720,7 +710,6 @@ elif pagina == "📈  Análise":
     # ── Correlação ────────────────────────────────────────────────────────────
     st.divider()
     st.markdown("**Correlação entre ativos (últimos 12 meses)**")
-
     with st.spinner("Calculando correlações..."):
         corr = matriz_correlacao(carteira)
 
@@ -734,11 +723,9 @@ elif pagina == "📈  Análise":
             showscale=True, colorbar=dict(thickness=12, len=0.8, tickfont=dict(size=10)),
         ))
         fig_corr.update_layout(**PLOT_LAYOUT)
-        fig_corr.update_layout(
-            xaxis=dict(side="bottom", tickfont=dict(size=11)),
-            yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
-            margin=dict(t=20, b=60, l=80, r=20),
-        )
+        fig_corr.update_layout(xaxis=dict(side="bottom", tickfont=dict(size=11)),
+                               yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
+                               margin=dict(t=20, b=60, l=80, r=20))
         st.plotly_chart(fig_corr, use_container_width=True, key="corr_analise")
         st.caption("Verde = correlação positiva · Vermelho = correlação negativa · Branco = sem correlação")
     else:
@@ -747,7 +734,6 @@ elif pagina == "📈  Análise":
     # ── Métricas de Risco ────────────────────────────────────────────────────
     st.divider()
     st.markdown("**Métricas de Risco (12 meses)**")
-
     with st.spinner("Calculando métricas de risco..."):
         metricas = calcular_metricas(carteira)
 
@@ -755,7 +741,6 @@ elif pagina == "📈  Análise":
         r1, r2, r3, r4, r5 = st.columns(5)
         sharpe_label, _ = interpretar_sharpe(metricas["sharpe"])
         dd_label, _     = interpretar_drawdown(metricas["max_drawdown"])
-
         r1.metric("Volatilidade anual", f"{metricas['vol_anual']*100:.1f}%",
                   help="Desvio padrão anualizado dos retornos diários")
         r2.metric("Sharpe Ratio", f"{metricas['sharpe']:.2f}", delta=sharpe_label,
@@ -809,10 +794,9 @@ elif pagina == "📈  Análise":
     else:
         st.caption("Histórico insuficiente para calcular métricas de risco.")
 
-    # ── Peso + concentração ───────────────────────────────────────────────────
+    # ── Peso + Concentração ───────────────────────────────────────────────────
     st.divider()
     col3, col4 = st.columns(2)
-
     with col3:
         st.markdown("**Peso por ativo**")
         df_peso = df.sort_values("% Carteira", ascending=True)
