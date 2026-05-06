@@ -11,6 +11,7 @@ from stress_test import CENARIOS_HISTORICOS, rodar_todos
 from risk_metrics import calcular_metricas, interpretar_sharpe, interpretar_drawdown
 from analytics import retorno_acumulado_carteira, acumulado_benchmarks, matriz_correlacao
 from database import carregar_carteira, salvar_ativo, remover_ativo, salvar_carteira, limpar_carteira
+from auth import is_logged_in, mostrar_tela_login, fazer_logout, get_user
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ section[data-testid="stSidebar"] strong {{ color: {TEXT_PRI} !important; }}
 [data-testid="stMetricLabel"] {{ color: {MUTED} !important; font-size: 0.75rem !important; letter-spacing: 0.08em; text-transform: uppercase; }}
 [data-testid="stMetricValue"] {{ color: {TEXT_PRI} !important; font-family: 'DM Mono', monospace !important; font-size: 1.4rem !important; }}
 [data-testid="stMetricDelta"] {{ font-family: 'DM Mono', monospace !important; font-size: 0.85rem !important; }}
+
 
 .stButton > button[kind="primary"] {{ background: {ACCENT} !important; color: {TEXT_PRI} !important; border: none !important; border-radius: 8px !important; font-weight: 700 !important; letter-spacing: 0.03em; transition: background 0.2s, transform 0.1s; }}
 .stButton > button[kind="primary"]:hover {{ background: {MUTED} !important; transform: translateY(-1px); }}
@@ -133,6 +135,10 @@ if "benchmarks_cache" not in st.session_state:
 
 carteira: Carteira = st.session_state.carteira
 
+if not is_logged_in():
+    mostrar_tela_login()
+    st.stop()
+
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -157,6 +163,13 @@ with st.sidebar:
             st.caption(f"💬 **{n_msgs}** msg(s) no chat")
     else:
         st.caption("Nenhum ativo cadastrado")
+        st.divider()
+    user = get_user()
+    if user:
+        st.caption(f"👤 {user.user.email}")
+    if st.button("Sair", use_container_width=True):
+        fazer_logout()
+        st.rerun()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PÁGINA 1 — CARTEIRA

@@ -2,14 +2,14 @@
 database.py
 ────────────────────────────────────────────────────────────
 Camada de persistência via Supabase (PostgreSQL).
-Substitui o carteira.json — interface idêntica para o resto do app.
+Dados filtrados por user_id — cada usuário vê só sua carteira.
 """
 
 from __future__ import annotations
-import os
 import streamlit as st
 from supabase import create_client, Client
 from portfolio import Carteira, Ativo
+
 
 # ─── Conexão ─────────────────────────────────────────────────────────────────
 
@@ -20,13 +20,27 @@ def get_supabase() -> Client:
     return create_client(url, key)
 
 
+def _uid() -> str | None:
+    """Retorna o user_id do usuário logado."""
+    user = st.session_state.get("user", None)
+    if user is None:
+        return None
+    try:
+        return user.user.id
+    except Exception:
+        return None
+
+
 # ─── CRUD ────────────────────────────────────────────────────────────────────
 
 def carregar_carteira() -> Carteira:
-    """Carrega todos os ativos do Supabase e retorna um objeto Carteira."""
+    """Carrega ativos do usuário logado."""
+    uid = _uid()
+    if not uid:
+        return Carteira()
     try:
         sb = get_supabase()
-        res = sb.table("ativos").select("*").execute()
+        res = sb.table("ativos").select("*").eq("user_id", uid).execute()
         carteira = Carteira()
         for row in res.data:
             carteira.ativos.append(Ativo(
@@ -44,7 +58,10 @@ def carregar_carteira() -> Carteira:
 
 
 def salvar_ativo(ativo: Ativo) -> bool:
-    """Insere ou atualiza um ativo no Supabase (upsert por ticker)."""
+    """Insere ou atualiza um ativo do usuário logado."""
+    uid = _uid()
+    if not uid:
+        return False
     try:
         sb = get_supabase()
         sb.table("ativos").upsert({
@@ -54,7 +71,8 @@ def salvar_ativo(ativo: Ativo) -> bool:
             "quantidade":  ativo.quantidade,
             "preco_medio": ativo.preco_medio,
             "preco_atual": ativo.preco_atual,
-        }, on_conflict="ticker").execute()
+            "user_id":     uid,
+        }, on_conflict="ticker,user_id").execute()
         return True
     except Exception as e:
         st.error(f"Erro ao salvar {ativo.ticker}: {e}")
@@ -62,10 +80,13 @@ def salvar_ativo(ativo: Ativo) -> bool:
 
 
 def remover_ativo(ticker: str) -> bool:
-    """Remove um ativo pelo ticker."""
+    """Remove um ativo do usuário logado."""
+    uid = _uid()
+    if not uid:
+        return False
     try:
         sb = get_supabase()
-        sb.table("ativos").delete().eq("ticker", ticker).execute()
+        sb.table("ativos").delete().eq("ticker", ticker).eq("user_id", uid).execute()
         return True
     except Exception as e:
         st.error(f"Erro ao remover {ticker}: {e}")
@@ -73,7 +94,10 @@ def remover_ativo(ticker: str) -> bool:
 
 
 def salvar_carteira(carteira: Carteira) -> bool:
-    """Salva todos os ativos da carteira (upsert em batch)."""
+    """Salva todos os ativos do usuário logado."""
+    uid = _uid()
+    if not uid:
+        return False
     try:
         sb = get_supabase()
         rows = [{
@@ -83,9 +107,10 @@ def salvar_carteira(carteira: Carteira) -> bool:
             "quantidade":  a.quantidade,
             "preco_medio": a.preco_medio,
             "preco_atual": a.preco_atual,
+            "user_id":     uid,
         } for a in carteira.ativos]
         if rows:
-            sb.table("ativos").upsert(rows, on_conflict="ticker").execute()
+            sb.table("ativos").upsert(rows, on_conflict="ticker,user_id").execute()
         return True
     except Exception as e:
         st.error(f"Erro ao salvar carteira: {e}")
@@ -93,10 +118,13 @@ def salvar_carteira(carteira: Carteira) -> bool:
 
 
 def limpar_carteira() -> bool:
-    """Remove todos os ativos."""
+    """Remove todos os ativos do usuário logado."""
+    uid = _uid()
+    if not uid:
+        return False
     try:
         sb = get_supabase()
-        sb.table("ativos").delete().neq("ticker", "").execute()
+        sb.table("ativos").delete().eq("user_id", uid).execute()
         return True
     except Exception as e:
         st.error(f"Erro ao limpar carteira: {e}")
