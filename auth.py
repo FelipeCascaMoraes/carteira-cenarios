@@ -28,7 +28,6 @@ def get_user_id() -> str | None:
 # ─── Login ───────────────────────────────────────────────────────────────────
 
 def fazer_login(email: str, senha: str) -> tuple[bool, str]:
-    """Tenta logar. Retorna (sucesso, mensagem)."""
     try:
         sb = get_supabase()
         res = sb.auth.sign_in_with_password({"email": email, "password": senha})
@@ -38,8 +37,9 @@ def fazer_login(email: str, senha: str) -> tuple[bool, str]:
         msg = str(e)
         if "Invalid login credentials" in msg:
             return False, "Email ou senha incorretos."
+        if "Email not confirmed" in msg:
+            return False, "Confirme seu email antes de entrar. Verifique sua caixa de entrada."
         return False, f"Erro ao fazer login: {msg}"
-
 
 # ─── Cadastro ────────────────────────────────────────────────────────────────
 
