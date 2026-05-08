@@ -142,9 +142,27 @@ if not is_logged_in():
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("### 📊 Carteira")
-    st.caption("Monte Carlo · IA · Macro")
+    # ── Logo ────────────────────────────────────────────────────────────────
+    st.markdown("""
+<div style="padding: 1.5rem 0 1rem; display:flex; align-items:center; gap:10px;">
+    <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+        <rect width="36" height="36" rx="10" fill="#1e293b"/>
+        <rect x="0.5" y="0.5" width="35" height="35" rx="9.5" stroke="#334155"/>
+        <polyline points="6,26 13,17 18,21 24,11 30,15"
+                  fill="none" stroke="#3b82f6" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="30" cy="15" r="2.5" fill="#4ade80"/>
+    </svg>
+    <div>
+        <div style="font-family:'Syne',sans-serif; font-weight:800; font-size:1rem; color:#e2e8f0; letter-spacing:-0.01em; line-height:1.1">Carteira</div>
+        <div style="font-family:'DM Mono',monospace; font-size:0.6rem; color:#475569; letter-spacing:0.1em; text-transform:uppercase">Monte Carlo · IA</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
     st.divider()
+
+    # ── Navegação ────────────────────────────────────────────────────────────
     pagina = st.radio("nav", [
         "🏠  Carteira",
         "🔮  Simulador",
@@ -152,21 +170,58 @@ with st.sidebar:
         "📈  Análise",
         "💬  Assessor IA",
     ], label_visibility="collapsed")
+
     st.divider()
+
+    # ── Status da carteira ───────────────────────────────────────────────────
     if carteira.ativos:
-        st.caption(f"**{len(carteira.ativos)}** ativos")
-        cor = "🟢" if carteira.pl_total_pct >= 0 else "🔴"
-        st.caption(f"Patrimônio: **R$ {carteira.valor_total_atual:,.0f}**")
-        st.caption(f"P&L total: {cor} **{carteira.pl_total_pct:+.1f}%**")
+        pl_cor  = "#4ade80" if carteira.pl_total_pct >= 0 else "#f87171"
+        pl_seta = "▲" if carteira.pl_total_pct >= 0 else "▼"
+        st.markdown(f"""
+<div style="display:flex; flex-direction:column; gap:6px; padding: 0.25rem 0">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="color:#475569; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; font-family:'DM Mono',monospace">Patrimônio</span>
+        <span style="color:#e2e8f0; font-size:0.85rem; font-weight:600; font-family:'DM Mono',monospace">R$ {carteira.valor_total_atual:,.0f}</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="color:#475569; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; font-family:'DM Mono',monospace">P&L total</span>
+        <span style="color:{pl_cor}; font-size:0.85rem; font-weight:600; font-family:'DM Mono',monospace">{pl_seta} {carteira.pl_total_pct:+.1f}%</span>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="color:#475569; font-size:0.7rem; text-transform:uppercase; letter-spacing:0.08em; font-family:'DM Mono',monospace">Ativos</span>
+        <span style="color:#94a3b8; font-size:0.85rem; font-family:'DM Mono',monospace">{len(carteira.ativos)}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
         if st.session_state.historico_chat:
             n_msgs = len(st.session_state.historico_chat) // 2
-            st.caption(f"💬 **{n_msgs}** msg(s) no chat")
+            st.markdown(f"""
+<div style="margin-top:6px; padding:6px 10px; background:#1e293b; border:1px solid #334155; border-radius:8px;">
+    <span style="color:#475569; font-size:0.7rem; font-family:'DM Mono',monospace">💬 {n_msgs} msg(s) no chat</span>
+</div>
+""", unsafe_allow_html=True)
     else:
-        st.caption("Nenhum ativo cadastrado")
-        st.divider()
+        st.markdown("""
+<div style="padding:8px 10px; background:#1e293b; border:1px solid #334155; border-radius:8px;">
+    <span style="color:#475569; font-size:0.75rem; font-family:'DM Mono',monospace">Nenhum ativo cadastrado</span>
+</div>
+""", unsafe_allow_html=True)
+
+    # ── Usuário + logout ─────────────────────────────────────────────────────
+    st.divider()
     user = get_user()
     if user:
-        st.caption(f"👤 {user.user.email}")
+        email_curto = user.user.email.split("@")[0]
+        st.markdown(f"""
+<div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+    <div style="width:28px; height:28px; border-radius:50%; background:#1e3a5f; display:flex; align-items:center; justify-content:center;">
+        <span style="color:#60a5fa; font-size:0.7rem; font-weight:700; font-family:'DM Mono',monospace">{email_curto[:2].upper()}</span>
+    </div>
+    <div style="overflow:hidden;">
+        <div style="color:#94a3b8; font-size:0.72rem; font-family:'DM Mono',monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:120px">{user.user.email}</div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
     if st.button("Sair", use_container_width=True):
         fazer_logout()
         st.rerun()
