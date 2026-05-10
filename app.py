@@ -412,8 +412,8 @@ if pagina == "🏠  Carteira":
                            annotation_text="Investido", annotation_font_color=MUTED,
                            annotation_position="bottom left")
         fig_evol.update_layout(**plotly_layout({"margin": dict(t=10, b=40, l=80, r=40)}),
-                       yaxis_tickprefix="R$ ", showlegend=False,
-                       height=200, hovermode="x unified")
+                               yaxis_tickprefix="R$ ", showlegend=False,
+                               height=200, hovermode="x unified")
         st.plotly_chart(fig_evol, use_container_width=True, key="evol_carteira")
     else:
         st.caption("Histórico insuficiente para gerar o gráfico.")
@@ -688,9 +688,9 @@ elif pagina == "📈  Análise":
         ))
         fig_pie.add_annotation(text=f"R$ {total:,.0f}", x=0.5, y=0.5,
                                font=dict(size=12, color=TEXT_PRI, family="DM Mono"), showarrow=False)
-        fig_pie.update_layout(**PLOT_LAYOUT, showlegend=True,
-                              legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"),
-                              margin=dict(t=10, b=10, l=10, r=10))
+        layout_pie = {**PLOT_LAYOUT, "margin": dict(t=10, b=10, l=10, r=10)}
+        fig_pie.update_layout(**layout_pie, showlegend=True,
+                              legend=dict(font=dict(size=11), bgcolor="rgba(0,0,0,0)"))
         st.plotly_chart(fig_pie, use_container_width=True, key="pie_analise")
 
     with col2:
@@ -703,7 +703,7 @@ elif pagina == "📈  Análise":
             textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
         fig_pl.add_vline(x=0, line_color=BORDER, line_width=1)
-        fig_pl.update_layout(**PLOT_LAYOUT, margin=dict(t=10, b=10, l=10, r=80))
+        fig_pl.update_layout(**plotly_layout({"margin": dict(t=10, b=10, l=10, r=80)}))
         st.plotly_chart(fig_pl, use_container_width=True, key="pl_analise")
 
     st.divider()
@@ -738,7 +738,7 @@ elif pagina == "📈  Análise":
             fig_vol.add_vline(x=x, line_color=BORDER, line_dash="dash", line_width=1,
                               annotation_text=label, annotation_font_color=MUTED,
                               annotation_font_size=10, annotation_position="top")
-        fig_vol.update_layout(**plotly_layout(), xaxis_ticksuffix="%", margin=dict(t=30, b=10, l=10, r=80))
+        fig_vol.update_layout(**plotly_layout({"margin": dict(t=30, b=10, l=10, r=80)}), xaxis_ticksuffix="%")
         st.plotly_chart(fig_vol, use_container_width=True, key="vol_analise")
         st.markdown(
             f'<span style="color:#4ade80;font-family:DM Mono,monospace;font-size:0.72rem">■ Baixo &lt;15%</span>&nbsp;&nbsp;'
@@ -770,10 +770,11 @@ elif pagina == "📈  Análise":
         fig_acum.add_trace(go.Scatter(x=acum_cart.index, y=acum_cart.values * 100,
                                       name="Carteira", mode="lines", line=dict(color=ACCENT, width=3)))
         fig_acum.add_hline(y=0, line_color=BORDER, line_width=1)
-        fig_acum.update_layout(**PLOT_LAYOUT, yaxis_ticksuffix="%",
+        fig_acum.update_layout(**plotly_layout({"margin": dict(t=20, b=40, l=60, r=20)}),
+                               yaxis_ticksuffix="%",
                                legend=dict(bgcolor="rgba(30,41,59,0.95)", bordercolor=BORDER,
                                            borderwidth=1, font=dict(size=11, color=TEXT_PRI)),
-                               margin=dict(t=20, b=40, l=60, r=20), hovermode="x unified")
+                               hovermode="x unified")
         st.plotly_chart(fig_acum, use_container_width=True, key="acum_analise")
         resumo_bench = {"Carteira": f"{acum_cart.iloc[-1]*100:+.1f}%"}
         for col in acum_bench.columns:
@@ -795,10 +796,11 @@ elif pagina == "📈  Análise":
             hovertemplate="<b>%{x} × %{y}</b><br>%{z:.2f}<extra></extra>",
             showscale=True, colorbar=dict(thickness=10, len=0.8, tickfont=dict(size=10)),
         ))
-        fig_corr.update_layout(**PLOT_LAYOUT,
-                               xaxis=dict(side="bottom", tickfont=dict(size=11)),
-                               yaxis=dict(tickfont=dict(size=11), autorange="reversed"),
-                               margin=dict(t=20, b=60, l=80, r=20))
+        fig_corr.update_layout(**plotly_layout({
+            "margin": dict(t=20, b=60, l=80, r=20),
+            "xaxis": dict(gridcolor=BORDER, zeroline=False, side="bottom", tickfont=dict(size=11)),
+            "yaxis": dict(gridcolor=BORDER, zeroline=False, tickfont=dict(size=11), autorange="reversed"),
+        }))
         st.plotly_chart(fig_corr, use_container_width=True, key="corr_analise")
         st.caption("Verde = correlação positiva · Vermelho = negativa")
 
@@ -830,8 +832,8 @@ elif pagina == "📈  Análise":
                          line_dash="dash", line_width=1,
                          annotation_text=f"Máx: {metricas['max_drawdown']*100:.1f}%",
                          annotation_font_color="#f87171")
-        fig_dd.update_layout(**plotly_layout(), yaxis_ticksuffix="%", showlegend=False,
-                             margin=dict(t=20, b=40, l=60, r=20), hovermode="x unified")
+        fig_dd.update_layout(**plotly_layout({"margin": dict(t=20, b=40, l=60, r=20)}),
+                             yaxis_ticksuffix="%", showlegend=False, hovermode="x unified")
         st.plotly_chart(fig_dd, use_container_width=True, key="dd_analise")
 
         col_int1, col_int2 = st.columns(2)
@@ -851,7 +853,7 @@ elif pagina == "📈  Análise":
             text=df_peso["% Carteira"].apply(lambda v: f"{v:.1f}%"),
             textposition="outside", textfont=dict(size=10, color=MUTED),
         ))
-        fig_peso.update_layout(**PLOT_LAYOUT, xaxis_ticksuffix="%", margin=dict(t=10, b=10, l=10, r=60))
+        fig_peso.update_layout(**plotly_layout({"margin": dict(t=10, b=10, l=10, r=60)}), xaxis_ticksuffix="%")
         st.plotly_chart(fig_peso, use_container_width=True, key="peso_analise")
 
     with col4:
